@@ -3,6 +3,7 @@
 Table of content:
 
 - [A basic OAuth2 authorization server with FastAPI framework](#a-basic-oauth2-authorization-server-with-fastapi-framework)
+  - [project structure](#project-structure)
   - [OAuth2 framework implementation](#oauth2-framework-implementation)
     - [code grant flow and implicit grant flow](#code-grant-flow-and-implicit-grant-flow)
     - [authorization code](#authorization-code)
@@ -18,6 +19,9 @@ Table of content:
   - [OAuth2 and OpenID connect](#oauth2-and-openid-connect)
     - [OAuth2 framework](#oauth2-framework)
   - [scratch pad](#scratch-pad)
+  - [References](#references)
+
+## project structure
 
 FastAPI is ASGI framework, it supports sync ans async request handling seamlessly.
 Think of FastAPI as the glue that brings together Starlette, Pydantic, OpenAPI,
@@ -122,7 +126,8 @@ Authorization Code Grant Flow:
    for permission grant. If the end-user grants the permission, the authorization
    server redirects back to the callback url with an authorization code.
 3. The application receives this code and then call the authorization server's
-   `/token` endpoint, with the authorization code (granted by the end-user).
+   `/token` endpoint, with the authorization code (granted by the end-user)
+   along with client_id and client_secret (in BasicAuth header or POST form body).
    The authorization server responds with the access token after validating
    the authorization code.
 
@@ -313,34 +318,15 @@ RS256 should be used in production system for OAuth 2 JWT signing, with its
 public key being distributed via the JWKS endpoint, which is usually
 "<auth-server-url-root>/.well-known/jwks.json".
 
-To generate the key pair for JWT RS256 signing algorithm, use `ssh-keygen`:
+To generate the key pair for JWT RS256 signing algorithm,
+use `openssl` to generate RSA private key pem file:
 
 ```sh
-ssh-keygen -t rsa -b 4096 -m pem -f ./jwt-key
-Generating public/private rsa key pair.
-Enter passphrase (empty for no passphrase):
-Enter same passphrase again:
-Your identification has been saved in ./jwt-key
-Your public key has been saved in ./jwt-key.pub
-The key fingerprint is:
-SHA256:y1LXqAn...j6ZtAKXxEoY xxx@yyy.local
-The key's randomart image is:
-+---[RSA 4096]----+
-|.                |
-|E..              |
-|.*               |
-...
-| . =%o..         |
-|  oX*+o          |
-+----[SHA256]-----+
+openssl genpkey -algorithm RSA -out jwt-private-key.pem -pkeyopt rsa_keygen_bits:2048
 ```
 
-The created `jwt-key` is the private key, the `jwt-key.pub` is the public key.
-Because the created pub key file above is NOT with PEM format (no headers), a
-pem format public key can be extracted by `openssl`:
-
 ```sh
-openssl rsa -in jwt-key -pubout -outform PEM -out jwt-key.pub
+openssl rsa -in jwt-private-key.pem -pubout -outform PEM -out jwt-public-key.pem
 ```
 
 These two key files can be loaded in authorization server and used in
@@ -514,3 +500,8 @@ curl -X 'POST' \
     "is_offer": true
     }'
 ```
+
+## References
+
+A good OAuth2 provider server java implementation tutorial:
+https://www.baeldung.com/java-ee-oauth2-implementation

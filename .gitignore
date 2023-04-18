@@ -6,6 +6,7 @@
 # cryptography key files
 jwt-key
 jwt-key.pub
+**/*.pem
 
 # python temp and cache files
 .ipynb_checkpoints

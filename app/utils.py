@@ -28,10 +28,10 @@ DUMMY_X_TOKEN = "a-secret-token"
 JWK_DEFAULT_KID = "default-jwk-kid"
 ALGORITHM = "RS256"
 
-# RS256_PRIVATE_PEM_FILE_PATH = os.path.dirname(__file__) + "/../jwt-key"
-RS256_PRIVATE_PEM_FILE_PATH = os.path.dirname(__file__) + "/../jwt-key-not-exist"
-# RS256_PUBLIC_PEM_FILE_PATH = os.path.dirname(__file__) + "/../jwt-key.pub"
-RS256_PUBLIC_PEM_FILE_PATH = os.path.dirname(__file__) + "/../jwt-key.pub-not-exist"
+RS256_PRIVATE_PEM_FILE_PATH = os.path.dirname(__file__) + "/../jwt-private-key.pem"
+# RS256_PRIVATE_PEM_FILE_PATH = os.path.dirname(__file__) + "/../jwt-key-not-exist"
+RS256_PUBLIC_PEM_FILE_PATH = os.path.dirname(__file__) + "/../jwt-public-key.pem"
+# RS256_PUBLIC_PEM_FILE_PATH = os.path.dirname(__file__) + "/../jwt-key.pub-not-exist"
 
 # RS256 secret key (PEM format), used the private key for jwt signing
 SECRET_KEY = None
@@ -42,6 +42,7 @@ try:
     private_key_obj = serialization.load_pem_private_key(
         SECRET_KEY.encode("utf-8"), password=None, backend=default_backend()
     )
+    print(f"RSA private key pem file loaded: {RS256_PRIVATE_PEM_FILE_PATH}")
 except OSError:
     pass
 if not SECRET_KEY:
@@ -66,6 +67,7 @@ try:
     PUBLIC_KEY = open(RS256_PUBLIC_PEM_FILE_PATH).read()
     # public_key_obj is the PublicKeyTypes object to support jwk serialization
     public_key_obj = serialization.load_pem_public_key(PUBLIC_KEY.encode("utf-8"))
+    print(f"RSA public key pem file loaded: {RS256_PUBLIC_PEM_FILE_PATH}")
 except OSError:
     pass
 if not PUBLIC_KEY:

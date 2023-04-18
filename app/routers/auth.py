@@ -181,7 +181,7 @@ async def get_login_grant(req: Request):
     <label for="password">Password:</label>
     <input type="password" name="password" id="password">
     <br>
-    <label for="grant">Grant:</label>
+    <label for="grant">Access Token Grant:</label>
     <input type="checkbox" name="user_grant" id="user_grant">
     <br>
     <input type="submit" value="Log In">
@@ -251,6 +251,7 @@ async def post_login_grant(
     # authorization code is mainly dependent on:
     # - client_id
     # - user_id
+    # - redirect_uri
     # - approved scopes, aka authorized_scopes
     # - expiration time
     auth_code = create_auth_code(
@@ -326,6 +327,9 @@ async def token_by_code(
         )
 
     # todo: validate client_id and client_secret
+    # client_id and client_secret should be provided by
+    # - HTTP Basic Auth header
+    # - OR, form-encoded POST body
     print(f">> client_id: {client_id}")
     print(f">> client_secret: {client_secret}")
 
@@ -380,7 +384,13 @@ async def token_by_code(
         data=token_data, expires_delta=access_token_expires_delta
     )
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    # todo: add scope property
+    token_resp = {
+        "access_token": access_token,
+        "token_type": "Bearer",
+        "expires_in": access_token_expires_delta.seconds,
+    }
+    return JSONResponse(content=token_resp)
 
 
 # example:
