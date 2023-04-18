@@ -1,5 +1,15 @@
 # A basic OAuth2 authorization server with FastAPI framework
 
+This is a conceptual and simplified implementation of OAuth2 authorization
+server with plain python, only for learning purpose.
+
+A mature OAuth2 python library to use in implementing a production OAuth2
+provider service is [authlib](https://github.com/lepture/authlib). It is 
+mainly sponsored by Auth0 and actively maintained.
+
+A good java implementation tutorial is helpful to learn basic
+OAuth2 concept is: https://www.baeldung.com/java-ee-oauth2-implementation.
+
 Table of content:
 
 - [A basic OAuth2 authorization server with FastAPI framework](#a-basic-oauth2-authorization-server-with-fastapi-framework)
@@ -502,6 +512,3 @@ curl -X 'POST' \
 ```
 
 ## References
-
-A good OAuth2 provider server java implementation tutorial:
-https://www.baeldung.com/java-ee-oauth2-implementation
