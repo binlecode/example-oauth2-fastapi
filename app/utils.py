@@ -11,7 +11,6 @@ from fastapi import (
     Header,
     APIRouter,
 )
-from fastapi.security import OAuth2PasswordBearer
 
 from passlib.context import CryptContext
 from jose import JWTError, jwt
@@ -87,11 +86,6 @@ TOKEN_EXPIRES_DELTA_MINUTES = 30
 AUTH_CODE_EXPIRES_DELTA_MINUTES = 3
 
 
-# this assumes the token endpoint as "context-root/<tokenUrl>"
-# define OAuth2 security scheme that uses password flow to get Bearer token
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
-
-
 # define an interceptor such as token check to be injected by Depends()
 # in openapi operation (aka controller action) methods
 async def verify_dummy_token(x_token: Annotated[str | None, Header()]):
@@ -122,8 +116,15 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
 # if token has audience claim, then decode MUST supply audience argument
 # https://pyjwt.readthedocs.io/en/stable/usage.html?highlight=audience#audience-claim-aud
-def decode_access_token(token: str, audience: str = None):
-    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], audience=audience)
+def decode_access_token(token: str, audience: str = None, options: dict = {}):
+    """
+    Raises:
+        all Exceptions from jwt.decode() method
+    """
+    payload = jwt.decode(
+        token, PUBLIC_KEY, algorithms=[ALGORITHM], audience=audience, options=options
+    )
+    # payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], audience=audience, options={"varify_aud": False})
     return payload
 
 
@@ -146,10 +147,14 @@ def create_jwk(kid=JWK_DEFAULT_KID, public_key=public_key_obj):
     }
 
 
-# create code grant flow authorization code, this code must be short-lived
-# for security
+# create code grant flow authorization code
+# by OAuth2 specs, authorization_code should be short-lived, with
+# expiration window of several minutes
+#
 # the code is built as a jwt token with expiration time encoded
-# it can optionally encode some user and client id info for validation
+# it can optionally encode additional info, such as user id, client id,
+# and redirect_uri, etc.
+#
 def create_auth_code(data: dict = {}, expires_minutes: int | None = None):
     to_encode = data.copy()
     expires_timedelta = timedelta(

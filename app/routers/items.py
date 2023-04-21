@@ -12,7 +12,7 @@ from pydantic import BaseModel
 # import with relative package path
 from ..utils import verify_dummy_token
 from ..utils import CommonsQueryParamsDep
-from ..utils import oauth2_scheme
+from .auth import oauth2_password_scheme
 
 from ..schemas import Item
 from ..db import items_db, next_item_id
@@ -68,7 +68,8 @@ async def read_items_v2(
 # - dependency inject oauth2 jwt token validation
 @router.get("/v3/", status_code=status.HTTP_200_OK, response_model=list[Item])
 async def read_items_v3(
-    commons: CommonsQueryParamsDep, token: Annotated[str, Depends(oauth2_scheme)]
+    commons: CommonsQueryParamsDep,
+    token: Annotated[str, Depends(oauth2_password_scheme)],
 ):
     return items_db[commons.offset : commons.offset + commons.limit]
 

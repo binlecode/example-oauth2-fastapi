@@ -8,6 +8,9 @@ jwt-key
 jwt-key.pub
 **/*.pem
 
+# sqlite db file
+*.db
+
 # python temp and cache files
 .ipynb_checkpoints
 .mypy_cache

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from jose import JWTError, jwt
 
-from ..utils import oauth2_scheme
+from .auth import oauth2_password_scheme
 from ..utils import decode_access_token
 
 from ..schemas import TokenData
@@ -11,6 +11,7 @@ from ..schemas import User, UserInDB
 
 from ..db import fake_users_db
 from ..db import get_user
+from ..db import SessionLocal
 
 router = APIRouter(
     prefix="/users",
@@ -22,7 +23,7 @@ router = APIRouter(
 # by OAuth2 spec,
 # any HTTP error status 401 is supposed to also return a `WWW-Authenticate` header
 # in our case (Bearer token), the value should be set to "Bearer"
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+async def get_current_user(token: Annotated[str, Depends(oauth2_password_scheme)]):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid authentication credentials",
@@ -36,7 +37,9 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
         token_data = TokenData(username=username)
     except JWTError:
         raise credentials_exception
-    user = get_user(fake_users_db, username=token_data.username)
+    db = SessionLocal()
+    user = db.query(User).filter(User.username == token_data.username).first()
+    # user = get_user(fake_users_db, username=token_data.username)
     if user is None:
         raise credentials_exception
     return user

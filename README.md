@@ -4,7 +4,7 @@ This is a conceptual and simplified implementation of OAuth2 authorization
 server with plain python, only for learning purpose.
 
 A mature OAuth2 python library to use in implementing a production OAuth2
-provider service is [authlib](https://github.com/lepture/authlib). It is 
+provider service is [authlib](https://github.com/lepture/authlib). It is
 mainly sponsored by Auth0 and actively maintained.
 
 A good java implementation tutorial is helpful to learn basic
@@ -15,16 +15,17 @@ Table of content:
 - [A basic OAuth2 authorization server with FastAPI framework](#a-basic-oauth2-authorization-server-with-fastapi-framework)
   - [project structure](#project-structure)
   - [OAuth2 framework implementation](#oauth2-framework-implementation)
-    - [code grant flow and implicit grant flow](#code-grant-flow-and-implicit-grant-flow)
-    - [authorization code](#authorization-code)
-    - [password grant](#password-grant)
+    - [code grant](#code-grant)
+      - [authorization code](#authorization-code)
+    - [implicit grant](#implicit-grant)
+    - [user password grant](#user-password-grant)
+      - [user password hashing](#user-password-hashing)
     - [client credentials grant](#client-credentials-grant)
     - [token response](#token-response)
     - [OAuth2 access token and bearer token](#oauth2-access-token-and-bearer-token)
     - [self-encoded token encoding](#self-encoded-token-encoding)
     - [client application registration](#client-application-registration)
     - [client application redirect\_uri validation](#client-application-redirect_uri-validation)
-    - [user password hash](#user-password-hash)
     - [access token JWT signing and JWKS endpoint](#access-token-jwt-signing-and-jwks-endpoint)
   - [OAuth2 and OpenID connect](#oauth2-and-openid-connect)
     - [OAuth2 framework](#oauth2-framework)
@@ -64,6 +65,8 @@ run app in development mode with reload enabled
 
 ```sh
 uvicorn app.main:app --reload
+# reset local sqlite db during app start up
+RESET_DB=true uvicorn app.main:app --reload
 ```
 
 openapi doc v3 auto-generated at:
@@ -125,7 +128,7 @@ Therefore, password grant should be discouraged or avoided.
 
 In fact the password grant is being removed in OAuth 2.1 update.
 
-### code grant flow and implicit grant flow
+### code grant
 
 Authorization Code Grant Flow:
 
@@ -147,22 +150,22 @@ server to verify the token using its `/introspect` endpoint. Or, if the token is
 self-contained, the resource server can optimize by locally verifying the
 token's signature, as is the case with a JWT.
 
-Implicit grant flow:
+#### authorization code
 
-The client application calls `/authorize` endpoint with `response_type=token`.
-The authorization server responds with access token and redirect
-the client application to the callback URL given in the request.
-
-### authorization code
-
-The authorization code should be hard to guss or interpret. It must be short
+The authorization code should be hard to guess or interpret. It must be short
 lived, usually with a time window of a few minutes. To implement, the code
 can be a self-contained token with expiration time encoded, so that it can be
 checked when it is passed to authorization server in exchange for the access
 token. This avoids the session state on the authorization server side to
 track the code lifetime.
 
-### password grant
+### implicit grant
+
+The client application calls `/authorize` endpoint with `response_type=token`.
+The authorization server responds with access token and redirect
+the client application to the callback URL given in the request.
+
+### user password grant
 
 Password grant request calls `/token` endpoint to request token directly.
 
@@ -179,6 +182,20 @@ the client_id and client_secret:
 
 - basic auth header
 - POST body form fields
+
+#### user password hashing
+
+Create hash string for a password before saving to database.
+
+In python/ipython venv: run below script:
+
+```python
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+password = "secret"
+hashed_password = pwd_context.hash(password)
+```
 
 ### client credentials grant
 
@@ -261,16 +278,26 @@ Public key can be obtained from `/jwks` endpoint from the authorization server.
 ### client application registration
 
 Authorization server is responsible for creating `client_id` and `client_secret`
-when a new client application is registered.
+when a new client application is being registered.
 
 Not specified by OAuth2 specs, but typically the following information is
 collected during client registration:
 
-- application name
-- authorization callback url (aka redirect_uri by OAuth2 specs)
+- client (application) name
+- callback_uri (aka redirect_uri)
   - this can be a list or a comma-separated string to store multiple
     redirect_uri's, during the authorization flow the redirect_uri provided
     in the request should be checked against this list
+- grant types: one or more grant types that this client can be authorized
+  by resource owner
+- scope: one or more token scopes that this client can be authorized by resource
+  owner
+- token endpoint auth methods: the methods that the token endpoint can use to
+  authenticate the client, some common options are:
+  - client_secret_basic: http basic auth header
+  - client_secret_post: post body, either form or JSON
+  - client_secret_jwt: openID connect jwt bearer token containing client secret
+  - private_key_jwt: openID connect jwt bearer token containing private key
 - homepage url
 - a short description
 - a link to application's privacy policy (can be used in consent approval)
@@ -285,20 +312,6 @@ There are three cases where redirect_uri should be validated:
 - when the developer registers the redirect URL as part of creating an application
 - in the authorization request (both authorization code and implicit grant types)
 - when the application exchanges an authorization code for an access token
-
-### user password hash
-
-Create hash string for a password before saving to database.
-
-In python/ipython venv: run below script:
-
-```python
-from passlib.context import CryptContext
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-password = "secret"
-hashed_password = pwd_context.hash(password)
-```
 
 ### access token JWT signing and JWKS endpoint
 
