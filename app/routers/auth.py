@@ -178,38 +178,16 @@ async def test_password_grant_resource(
 # - implicit grant: https://datatracker.ietf.org/doc/html/rfc6749#section-4.2
 #
 # By OAuth2 spec, authorize endpoint should at least support http GET.
-#
-# OAuth2 doesn't specify how the IdP authenticates the user.
 # The authorization server delegates the user authentication to IdP.
-# The authorization endpoint redirects the user to be authenticated with
-# an IdP, if user is not authenticated yet.
-#
-# Usually the IdP should have some sort of web form to receive and validate
-# user credentials. Or, by standard protocols like OpenID connect or SAML.
-#
-# In this example, a web form based user login interface is provided
-# as IdP in a different route path, although it can be from any url and domain.
-#
-# This delegation is essentially a redirection flow, where the user agent
-# (browser) serves as the intermediary:
-# user is redirected to the IdP's authentication page, upon successful
-# authentication, user is redirected back to the authorization callback url,
-# where user approves the token grant, then redirected to the `redirect_uri`
-# from the original client application's request with the grant asset, which
-# is either an authorization code (code grant), or an access_token (implicit
-# grant).
-#
-# The use of the user's web browser as an intermediary allows the
-# authorization server to receive the user's authentication response
-# from the IdP without needing to expose the user's credentials to the
-# client or the authorization server.
-
-# The redirect_uri in the original request is the callback endpoint
-# of the client application. In the use case of code grant, the client
-# application callback endpoint should handle the received authorization code
-# and POST to authorization server's /token endpoint to exchange for the
-# access token.
-
+# - authorization endpoint redirects the user to IdP user login url
+# - if login successful, IdP redirects response back to authorization server's
+#   callback url
+# - authorization server callback endpoint receives this federated user identity
+#   confirmation, and redirects to token scope grant web form
+# - if grant approved, authorization server generates authorization code
+#   (if code grant) or access_token (if implicit grant) and redirects
+#   response back to client application's callback uri (the redirect_uri
+#   value in the original client application request)
 #
 # a typical code grant /authorize endpoint request is like:
 # https://authorization-server.com/oauth/authorize
