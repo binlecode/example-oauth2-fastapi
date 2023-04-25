@@ -14,7 +14,9 @@ Table of content:
 
 - [A basic OAuth2 authorization server with FastAPI framework](#a-basic-oauth2-authorization-server-with-fastapi-framework)
   - [project structure](#project-structure)
+  - [OpenApi doc v3](#openapi-doc-v3)
   - [OAuth2 framework implementation](#oauth2-framework-implementation)
+    - [federated IdP user authentication](#federated-idp-user-authentication)
     - [code grant](#code-grant)
       - [authorization code](#authorization-code)
     - [implicit grant](#implicit-grant)
@@ -69,12 +71,6 @@ uvicorn app.main:app --reload
 RESET_DB=true uvicorn app.main:app --reload
 ```
 
-openapi doc v3 auto-generated at:
-http://127.0.0.1:8000/docs
-
-With openapi doc loaded in swagger editor interface, it is recommended to use
-it for interactive requests during development.
-
 Project structure:
 
 ```
@@ -90,6 +86,14 @@ app                  # app root folder
 │   └── users.py     # "users" submodule, e.g. import app.routers.users
 │   └── auth.py      # "auth" submodule for security and access control
 ```
+
+## OpenApi doc v3
+
+openapi doc v3 auto-generated at:
+http://127.0.0.1:8000/docs
+
+With openapi doc loaded in swagger editor interface, it is recommended to use
+it for interactive requests during development.
 
 ## OAuth2 framework implementation
 
@@ -127,6 +131,45 @@ exactly why OAuth 2 is created to prevent in the first place.
 Therefore, password grant should be discouraged or avoided.
 
 In fact the password grant is being removed in OAuth 2.1 update.
+
+
+### federated IdP user authentication
+
+OAuth2 doesn't standardize user authentication.
+The authorization server delegates the user authentication to an Identity
+Provider (IdP). If the IdP is not local but a third party entity, this
+becomes a federated user authentication.
+
+The authorization endpoint redirects the user to be authenticated with
+an IdP, if user is not authenticated yet.
+
+Usually the IdP should have some sort of endpoint or web interface to 
+receive and validate user credentials. There are standard protocols designed
+for this, such as OpenID connect and SAML.
+
+In this example, an IdP with a web form user login interface is provided
+in a different route path, to mimic a third party IdP. It can be from any 
+url or domain.
+
+This delegated user authentication, aka a federated user identity retrieval,
+is essentially a redirection flow, where the user-agent (web browser) serves 
+as the intermediary:
+user is redirected to the IdP's authentication page, upon successful
+authentication, user is redirected back to the authorization callback url,
+where user approves the token grant, then redirected to the `redirect_uri`
+from the original client application's request with the grant asset, which
+is either an authorization code (code grant), or an access_token (implicit
+grant).
+
+The use of the user's web browser as an intermediary allows the
+authorization server to receive the user's authentication response
+from the IdP without needing to expose the user's credentials to the
+client or the authorization server.
+The redirect_uri in the original request is the callback endpoint
+of the client application. In the use case of code grant, the client
+application callback endpoint should handle the received authorization code
+and POST to authorization server's /token endpoint to exchange for the
+access token.
 
 ### code grant
 
