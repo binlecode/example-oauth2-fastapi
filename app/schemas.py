@@ -40,16 +40,14 @@ class User(BaseModel):
 
 # db user is a subclass of User
 # with one more attribute for hashed password
-class UserInDB(User):
+class UserSave(User):
+    id: int
     hashed_password: str
 
 
-class Item(BaseModel):
-    name: str
-    price: float | None = None  # type float and nullable
-    is_offer: bool | None = None  # type boolean and nullable
+class UserRead(User):
+    id: int
 
-    # @validator("id")
-    # def id_PK(cls, v):
-    #     if v is None or v < 0:
-    #         raise ValueError(f"id value invalid: {v}")
+    # set orm_mode to convert orm to dict for json
+    class Config:
+        orm_mode = True
