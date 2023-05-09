@@ -15,8 +15,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        # "*",
-        "http://127.0.0.1:8000",  # allow local (/docs) swagger-ui
+        "*",
+        # "http://127.0.0.1:8000",  # allow local (/docs) swagger-ui
     ],
     # allow cookies for cross-origin requests, when allow_credentials is set
     # True, allow_origins can not be set to ["*"]
