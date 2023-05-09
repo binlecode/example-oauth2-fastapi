@@ -13,26 +13,26 @@ OAuth2 concept is: https://www.baeldung.com/java-ee-oauth2-implementation.
 Table of content:
 
 - [A basic OAuth2 authorization server with FastAPI framework](#a-basic-oauth2-authorization-server-with-fastapi-framework)
-  - [project structure](#project-structure)
-  - [OpenApi doc v3](#openapi-doc-v3)
-  - [OAuth2 framework implementation](#oauth2-framework-implementation)
-    - [federated IdP user authentication](#federated-idp-user-authentication)
-    - [code grant](#code-grant)
-      - [authorization code](#authorization-code)
-    - [implicit grant](#implicit-grant)
-    - [user password grant](#user-password-grant)
-      - [user password hashing](#user-password-hashing)
-    - [client credentials grant](#client-credentials-grant)
-    - [token response](#token-response)
-    - [OAuth2 access token and bearer token](#oauth2-access-token-and-bearer-token)
-    - [self-encoded token encoding](#self-encoded-token-encoding)
-    - [client application registration](#client-application-registration)
-    - [client application redirect\_uri validation](#client-application-redirect_uri-validation)
-    - [access token JWT signing and JWKS endpoint](#access-token-jwt-signing-and-jwks-endpoint)
-  - [OAuth2 and OpenID connect](#oauth2-and-openid-connect)
-    - [OAuth2 framework](#oauth2-framework)
-  - [scratch pad](#scratch-pad)
-  - [References](#references)
+    - [project structure](#project-structure)
+    - [OpenApi doc v3](#openapi-doc-v3)
+    - [OAuth2 framework implementation](#oauth2-framework-implementation)
+        - [federated IdP user authentication](#federated-idp-user-authentication)
+        - [code grant](#code-grant)
+            - [authorization code](#authorization-code)
+        - [implicit grant](#implicit-grant)
+        - [user password grant](#user-password-grant)
+            - [user password hashing](#user-password-hashing)
+        - [client credentials grant](#client-credentials-grant)
+        - [token response](#token-response)
+        - [OAuth2 access token and bearer token](#oauth2-access-token-and-bearer-token)
+        - [self-encoded token encoding](#self-encoded-token-encoding)
+        - [client application registration](#client-application-registration)
+        - [client application redirect\_uri validation](#client-application-redirect_uri-validation)
+        - [access token JWT signing and JWKS endpoint](#access-token-jwt-signing-and-jwks-endpoint)
+    - [OAuth2 and OpenID connect](#oauth2-and-openid-connect)
+        - [OAuth2 framework](#oauth2-framework)
+    - [scratch pad](#scratch-pad)
+    - [References](#references)
 
 ## project structure
 
@@ -89,11 +89,43 @@ app                  # app root folder
 
 ## OpenApi doc v3
 
-openapi doc v3 auto-generated at:
+Openapi doc v3 is auto-generated and served with url:
 http://127.0.0.1:8000/docs
 
 With openapi doc loaded in swagger editor interface, it is recommended to use
 it for interactive requests during development.
+
+## OpenApi v2 doc
+
+Also, an openapi v2 doc yaml file is available [openapi_v2.yaml](openapi_v2.yaml).
+This yaml can be loaded to an online swagger-UI editor for testing.
+
+An OAuth 2 client is pre-registered for the official swagger-ui (https://editor.swagger.io/).
+
+## Preloaded client applications
+
+For demo/testing, the database initial migration script includes the following
+clients for token flows:
+
+- local swagger UI client, via built-in openapi v3 '/docs' endpoint
+- postman client
+- online swagger editor client (https://editor.swagger.io/)
+
+See [db_migration.py](app/db_migration.py) for detailed client registration
+properties such as client credentials, redirect_uri, grant_types, token scopes,
+etc. They will be used in swagger UI or postman authorization forms to invoke
+authorization flows.
+
+For example, for online-swagger client, paste the content of
+[openapi_v2.yaml](openapi_v2.yaml) to https://editor.swagger.io.
+To authorize with code grant flow, check client entity and user entity
+specified in the database migration script and set:
+
+- client_id=online-swagger
+- client_secret=secret
+
+And choose one of the two preloaded users, johndoe and alice, with his/her
+respective password for authentication and token scope grant.
 
 ## OAuth2 framework implementation
 
@@ -132,7 +164,6 @@ Therefore, password grant should be discouraged or avoided.
 
 In fact the password grant is being removed in OAuth 2.1 update.
 
-
 ### federated IdP user authentication
 
 OAuth2 doesn't standardize user authentication.
@@ -143,16 +174,16 @@ becomes a federated user authentication.
 The authorization endpoint redirects the user to be authenticated with
 an IdP, if user is not authenticated yet.
 
-Usually the IdP should have some sort of endpoint or web interface to 
+Usually the IdP should have some sort of endpoint or web interface to
 receive and validate user credentials. There are standard protocols designed
 for this, such as OpenID connect and SAML.
 
 In this example, an IdP with a web form user login interface is provided
-in a different route path, to mimic a third party IdP. It can be from any 
+in a different route path, to mimic a third party IdP. It can be from any
 url or domain.
 
 This delegated user authentication, aka a federated user identity retrieval,
-is essentially a redirection flow, where the user-agent (web browser) serves 
+is essentially a redirection flow, where the user-agent (web browser) serves
 as the intermediary:
 user is redirected to the IdP's authentication page, upon successful
 authentication, user is redirected back to the authorization callback url,
@@ -272,12 +303,12 @@ Unsuccessful response:
 
 - return http 400 bad request status code
 - error: will always be one of the following:
-  - invalid_request
-  - invalid_client, 401 status code is preferred in this case
-  - invalid_grant
-  - invalid_scope
-  - unauthorized_client
-  - unsupported_grant_type
+    - invalid_request
+    - invalid_client, 401 status code is preferred in this case
+    - invalid_grant
+    - invalid_scope
+    - unauthorized_client
+    - unsupported_grant_type
 - error_description, optional message of the error
 
 ### OAuth2 access token and bearer token
@@ -328,19 +359,19 @@ collected during client registration:
 
 - client (application) name
 - callback_uri (aka redirect_uri)
-  - this can be a list or a comma-separated string to store multiple
-    redirect_uri's, during the authorization flow the redirect_uri provided
-    in the request should be checked against this list
+    - this can be a list or a comma-separated string to store multiple
+      redirect_uri's, during the authorization flow the redirect_uri provided
+      in the request should be checked against this list
 - grant types: one or more grant types that this client can be authorized
   by resource owner
 - scope: one or more token scopes that this client can be authorized by resource
   owner
 - token endpoint auth methods: the methods that the token endpoint can use to
   authenticate the client, some common options are:
-  - client_secret_basic: http basic auth header
-  - client_secret_post: post body, either form or JSON
-  - client_secret_jwt: openID connect jwt bearer token containing client secret
-  - private_key_jwt: openID connect jwt bearer token containing private key
+    - client_secret_basic: http basic auth header
+    - client_secret_post: post body, either form or JSON
+    - client_secret_jwt: openID connect jwt bearer token containing client secret
+    - private_key_jwt: openID connect jwt bearer token containing private key
 - homepage url
 - a short description
 - a link to application's privacy policy (can be used in consent approval)
