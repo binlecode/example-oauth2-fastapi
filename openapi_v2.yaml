@@ -1,0 +1,80 @@
+swagger: "2.0"
+info:
+  title: Example OAuth 2 Provider API
+  description: A simplifed OAuth 2 authorization server API by openapi v2 specs.
+  version: 1.0.0
+host: 127.0.0.1:8000
+schemes:
+  # - https
+  - http
+consumes:
+  - "application/json"
+produces:
+  - "application/json"
+paths:
+  "/":
+    get:
+      operationId: root
+      produces:
+        - text/plain
+      responses:
+        "200":
+          description: successful root response
+          schema:
+            type: string
+  # oauth2 openid connect userinfo endpoint
+  "/auth/userinfo":
+    post:
+      # operationId is MANDATORY for gcp cloud endpoints as internal
+      # identification of the operation, it must be unique within this api
+      # namespace
+      operationId: userinfo
+      consumes:
+        - "application/json"
+      responses:
+        "200":
+          description: response of oauth2 userinfo message
+          schema:
+            type: string
+      security:
+        - oauth2_code: []
+  "/users/me":
+    get:
+      operationId: users-me
+      consumes:
+        - "application/json"
+      responses:
+        "200":
+          description: response of current logged in user information
+          schema:
+            type: string
+      security:
+        - oauth2_code: []
+        - oauth2_implicit: []
+        - oauth2_password: []
+securityDefinitions:
+  oauth2_code:
+    type: oauth2
+    flow: accessCode
+    authorizationUrl: "http://localhost:8000/auth/authorize"
+    tokenUrl: "http://localhost:8000/auth/token"
+    scopes:
+      openid: OpenID scope
+      profile: Profile scope
+      email: Email scope
+  oauth2_implicit:
+    type: oauth2
+    flow: implicit
+    authorizationUrl: "http://localhost:8000/auth/authorize"
+    scopes:
+      openid: OpenID scope
+      profile: Profile scope
+      email: Email scope
+  oauth2_password:
+    type: oauth2
+    flow: password
+    tokenUrl: "http://localhost:8000/auth/token"
+    scopes:
+      openid: OpenID scope
+      profile: Profile scope
+      email: Email scope

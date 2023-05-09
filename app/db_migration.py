@@ -28,7 +28,7 @@ def init_db():
     session.add_all([u1, u2])
     session.commit()
 
-    # add oauth2 clients
+    # add oauth2 client of built-in swagger-ui
     oc1 = OAuth2Client(
         client_id="swagger",
         client_secret="secret",
@@ -45,6 +45,7 @@ def init_db():
             "token_endpoint_auth_method": ["client_secret_basic"],
         }
     )
+    # add oauth2 client of postman
     oc2 = OAuth2Client(
         client_id="postman",
         client_secret="secret",
@@ -61,5 +62,23 @@ def init_db():
             "token_endpoint_auth_method": ["client_secret_basic"],
         }
     )
-    session.add_all([oc1, oc2])
+    # add oauth2 client of online swagger-ui editor
+    # note for this to work, the cors settings need to allow swagger domain
+    oc3 = OAuth2Client(
+        client_id="online-swagger",
+        client_secret="secret",
+        client_id_issued_at=datetime.utcnow(),
+    )
+    oc3.set_client_metadata(
+        {
+            "client_name": "online-swagger",
+            "client_uri": "https://editor.swagger.io",
+            "grant_types": ["authorization_code"],
+            "redirect_uris": ["https://editor.swagger.io/oauth2-redirect.html"],
+            "response_types": ["code"],
+            "scope": "profile openid email",
+            "token_endpoint_auth_method": ["client_secret_basic"],
+        }
+    )
+    session.add_all([oc1, oc2, oc3])
     session.commit()
