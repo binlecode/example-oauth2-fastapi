@@ -48,26 +48,26 @@ router = APIRouter(
 # (IdP). This IdP can be local or remote 3rd party, depending on where the
 # user information is managed.
 
-# IdP authentication form url
-# IDP_LOGIN_URL = "/auth/login"
-
-# a 'third-party' IdP which can be on a different domain
-# in this example it is simulated by a different route in the same web app,
-# but it can be from any domain
+# IdP authentication form url.
+# In this example a 3rd party IdP is simulated by a different route in the
+# same web app, but it can be from any domain
+# this url should contain absolute path as it can be from any domain.
 IDP_LOGIN_URL = "http://127.0.0.1:8000/identity/login"
-
 print(f">> Authorization server uses IdP user authentication URL: {IDP_LOGIN_URL}")
 
 
-# authorization server callback url to receive authentication response
-# from the authentication server
-# the response should be a POST redirect to protect content in body
+# Authorization server callback url is used to receive authentication response
+# from the authentication server, aka IdP.
+# The response should be a POST redirect to protect the content in the body.
+# This url MUST contain absolute path because it is passed as a request
+# parameter to the IdP authentication server as the callback redirect url for
+# the authentication response.
 AUTHORIZATION_CALLBACK_URL = "http://127.0.0.1:8000/auth/authorization_callback"
 
 
-# grant form url, this is the url for user to grant client application
-# for requested scopes of the access token
-# this is a local endpoint of authorization server
+# Grant form url, this is the url for user to grant the client application
+# with the requested scopes for the access token.
+# This is a local endpoint of the authorization server.
 AUTHORIZATION_GRANT_URL = "/auth/form_grant"
 
 
@@ -94,7 +94,9 @@ CLIENT_SCOPES = {
 # OpenAPI OAuth2 schema for: password grant bearer token
 # Ref: https://datatracker.ietf.org/doc/html/rfc6749#section-4.3
 # this assumes the token endpoint as "context-root/<tokenUrl>"
-oauth2_password_scheme = OAuth2PasswordBearer(tokenUrl=OAUTH2_TOKEN_URL)
+oauth2_password_scheme = OAuth2PasswordBearer(
+    tokenUrl=OAUTH2_TOKEN_URL, scopes=CLIENT_SCOPES
+)
 
 # OpenAPI OAuth2 schema for: authorization code grant bearer token
 # Ref: https://datatracker.ietf.org/doc/html/rfc6749#section-4.1
@@ -105,8 +107,8 @@ oauth2_code_schema = OAuth2AuthorizationCodeBearer(
 )
 
 
-# OpanAPI does no built-in class definition of impliment grant to token
-# security scheme, we define one here
+# FastAPI has no built-in security scheme class definition for implicit grant
+# token, we define one here.
 class OAuth2ImplicitBearer(OAuth2):
     def __init__(
         self,
@@ -281,8 +283,7 @@ async def authorize(request: Request):
 # - grant_type == "password"
 # - todo: support client_credentials
 # it expects a form as POST body
-
-
+#
 # a typical request to exchange authorization_code for token is like:
 # https://authorization-server.com/oauth/token
 #  &grant_type=authorization_code
@@ -300,8 +301,9 @@ async def authorize(request: Request):
 # by OAuth2 spec, the response of the token endpoint:
 # - must be a JSON object
 # - must have `token_type` key, almost always "Bearer"
-# - must have `access_token` key to hold token string
+# - must have `access_token` key to hold token content string
 # - should have `expires_in` key with value in seconds
+#
 @router.post("/token", response_class=JSONResponse)
 async def token_by_grant_type(
     grant_type: str = Form(),
@@ -320,22 +322,18 @@ async def token_by_grant_type(
 ):
     if grant_type == "authorization_code":
         token_response = await build_token_by_code(
-            grant_type=grant_type,
             code=code,
             client_id=client_id,
             client_secret=client_secret,
-            redirect_uri=redirect_uri,
             scope=scope,
             state=state,
         )
     elif grant_type == "password":
         token_response = await build_token_by_password(
-            grant_type=grant_type,
             username=username,
             password=password,
             client_id=client_id,
             client_secret=client_secret,
-            redirect_uri=redirect_uri,
             scope=scope,
             state=state,
         )
@@ -349,12 +347,10 @@ async def token_by_grant_type(
 
 
 async def build_token_by_password(
-    grant_type: str,
     username: str,
     password: str,
     client_id: str,
     client_secret: str,
-    redirect_uri: str | None,
     scope: str | None,
     state: str | None,
 ):
@@ -376,9 +372,13 @@ async def build_token_by_password(
     # db = SessionLocal()
     # client = db.query(OAuth2Client).filter(OAuth2Client.client_id == client_id).first()
 
+    token_data = {"iss": ISSUER, "sub": user.username}
+    if scope:
+        token_data["scope"] = scope
+
     access_token_expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"iss": ISSUER, "sub": user.username},
+        data=token_data,
         expires_delta=access_token_expires_delta,
     )
     return {
@@ -389,11 +389,9 @@ async def build_token_by_password(
 
 
 async def build_token_by_code(
-    grant_type: str,
     code: str,
     client_id: str,
     client_secret: str,
-    redirect_uri: str | None,
     scope: str | None,
     state: str | None,
 ):
@@ -414,18 +412,27 @@ async def build_token_by_code(
             detail="Authorization code signature has expired",
         )
     print(f">> auth_code payload: {code_data}")
-    if "client_id" in code_data and client_id != code_data["client_id"]:
+
+    # validate client_id in auth code payload
+    if client_id != code_data["client_id"]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authorization code has invalid client",
         )
 
+    # todo: validate scope if given
+    #   usually for code grant across multiple redirects between authz server
+    #   and IdP, the original requested scopes should be persistent with the
+    #   the duration of the lifespan of the authorization code, which is
+    #   usually saved in database along with the authorization code
+    # at the moment for simplicity, the scope value is included in code payload
+    # instead of saved in db, this will increase the content size of the code
+    if not scope and code_data.get("scope"):
+        scope = code_data["scope"]
+
     # todo: validate state if given, this requires a server-side session,
     #   which keeps the original state value from previous authorization code
     #   request on `/authorize` endpoint
-    # todo: generate jwt Bearer token
-
-    access_token_expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
     # initialize token data with issuer and audience claims
     # By JWT, "iss" identifies the principal that issued the JWT,
@@ -447,6 +454,7 @@ async def build_token_by_code(
 
     # todo: add additional custom claim k-vs if any
 
+    access_token_expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data=token_data, expires_delta=access_token_expires_delta
     )
@@ -558,7 +566,6 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
 @router.post("/authorization_callback")
 async def authorization_callback(
     username: Annotated[str, Form()],
-    # password: Annotated[str, Form()],
     redirect_uri: Annotated[str, Form()],
     client_id: Annotated[str, Form()],
     scope: str | None = Form(None),
@@ -675,8 +682,9 @@ async def post_form_grant(
     # check response_type
     # if None => default to code grant, generate authorization code and redirect
     # if token => implicit grant, generate access token and redirect
-    print(f">> post_login_grant >> response_type: {response_type}")
+    print(f">> POST form_grant >> response_type: {response_type}")
 
+    # if implicit grant, return access token in redirect response
     if response_type == "token":
         access_token_expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
@@ -684,7 +692,8 @@ async def post_form_grant(
             expires_delta=access_token_expires_delta,
         )
         # by OAuth 2 specs, for implicit grant, access token must be put into
-        # url segment (#access_token=..) in the response redirect url
+        # url segment (#access_token=..) in the response redirect url for
+        # safety reason
         redirect_url = redirect_uri + "#access_token=" + access_token
         redirect_url += "&token_type=Bearer"
         redirect_url += f"&expires_in={access_token_expires_delta.seconds}"
@@ -700,11 +709,17 @@ async def post_form_grant(
         return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
     # otherwise default to code grant, generate authorization code
+    # todo: for now include scope in code, need to persist scope along with
+    #   auth code for the duration of the code grant flow
+    code_data = {
+        "username": username,
+        "client_id": client_id,
+    }
+    if scope:
+        code_data["scope"] = scope
+
     auth_code = create_auth_code(
-        {
-            "username": username,
-            "client_id": client_id,
-        },
+        code_data,
         expires_minutes=AUTHORIZATION_CODE_EXPIRE_MINUTES,
     )
 
@@ -716,6 +731,8 @@ async def post_form_grant(
     if state:
         redirect_url += f"&state={state}"
 
+    print(f">> POST form_grant >> redirect_url: {redirect_url}")
+
     # by default, FastAPI use status code 307 for redirect, which will keep
     # the original http method, in this case a POST
     # to change the redirect from POST to GET, set status_code to 303
@@ -723,10 +740,15 @@ async def post_form_grant(
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
-# /userinfo endpoint to support OpenID Connect protocol to provide user info
-# by the Bearer token from the request
+# /userinfo endpoint to support OpenID Connect protocol to provide user profile
+# information.
+# This endpoint expects a Bearer token from the request.
 # Ref: https://openid.net/specs/openid-connect-core-1_0.html#UserInfoRequest
-# to access this endpoint the provided Bearer token must contain 'openid' scope
+# To access this endpoint the provided Bearer token must contain 'openid' scope.
+# There are different implementation cases of fetching user data:
+# - if authz server is IdP at the same time, then get user data locally
+# - if authz server has IdP integration, then ask IdP for user data
+# - if authz is alone, then extract all claims included in the Bearer token
 @router.post("/userinfo", response_class=JSONResponse)
 async def userinfo(token_payload: dict = Depends(get_request_token)):
     print(">> /userinfo >> token_payload:", token_payload)
@@ -745,8 +767,8 @@ async def userinfo(token_payload: dict = Depends(get_request_token)):
             },
         )
 
-    # todo: this assumes authz server is idp, which is not always the case
-    #   the returned json should simply be the token_payload
+    # upon successful security check, generate user information response
+    # option 1: this authz server is idp or can access idP
     # use sub claim as username to fetch user data
     # sub = token_payload.get("sub")
     # db = SessionLocal()
@@ -759,12 +781,23 @@ async def userinfo(token_payload: dict = Depends(get_request_token)):
     #             "WWW-Authenticate": 'error="invalid_token", error_description="The access token is invalid."'
     #         },
     #     )
-    # user_info = {
+    # user_data = {
     #     "sub": token_payload.get("sub"),
     #     "name": user.full_name,
     #     "email": user.email,
     # }
 
-    user_info = token_payload.copy()
-    user_info.pop("exp", None)  # remove exp key if exists
+    # option 2: authz server has no access to IdP
+    # returned json should simply be the token_payload
+    user_data = token_payload.copy()
+    # remove exp key if exists
+    user_data.pop("exp", None)
+
+    # todo: selectively collect claims by user consent from the available
+    #   user_data content
+    # for example, if scope includes 'profile' (from openid connect specs),
+    # then include profile claims such as family_name, given_name, etc
+    # for now, simply expose all from user_data
+    user_info = user_data
+
     return JSONResponse(content=user_info)
