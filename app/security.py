@@ -114,17 +114,24 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     return encoded_jwt
 
 
-# if token has audience claim, then decode MUST supply audience argument
+# if token has audience claim, then decode MUST supply audience argument,
+# unless options.verify_aud = False
 # https://pyjwt.readthedocs.io/en/stable/usage.html?highlight=audience#audience-claim-aud
 def decode_access_token(token: str, audience: str = None, options: dict = {}):
     """
     Raises:
         all Exceptions from jwt.decode() method
     """
+    # payload = jwt.decode(
+    #     token, PUBLIC_KEY, algorithms=[ALGORITHM], audience=audience, options=options
+    # )
     payload = jwt.decode(
-        token, PUBLIC_KEY, algorithms=[ALGORITHM], audience=audience, options=options
+        token,
+        PUBLIC_KEY,
+        algorithms=[ALGORITHM],
+        audience=audience,
+        options={"verify_aud": False},
     )
-    # payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], audience=audience, options={"varify_aud": False})
     return payload
 
 
