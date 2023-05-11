@@ -71,7 +71,14 @@ uvicorn app.main:app --reload
 RESET_DB=true uvicorn app.main:app --reload
 ```
 
-Project structure:
+build docker image and run container locally
+
+```sh
+docker build -t example-oauth2-fastapi .
+docker run --name example-oauth2-fastapi -p 8000:8000 --rm example-oauth2-fastapi
+```
+
+Project content structure:
 
 ```
 app                  # app root folder

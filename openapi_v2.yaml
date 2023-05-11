@@ -1,7 +1,7 @@
 swagger: "2.0"
 info:
   title: Example OAuth 2 Provider API
-  description: A simplifed OAuth 2 authorization server API by openapi v2 specs.
+  description: A simplified OAuth 2 authorization server API by openapi v2 specs.
   version: 1.0.0
 host: 127.0.0.1:8000
 schemes:
