@@ -34,7 +34,7 @@ Table of content:
     - [scratch pad](#scratch-pad)
     - [References](#references)
 
-## project structure
+## project setup
 
 FastAPI is ASGI framework, it supports sync ans async request handling seamlessly.
 Think of FastAPI as the glue that brings together Starlette, Pydantic, OpenAPI,
@@ -71,27 +71,63 @@ uvicorn app.main:app --reload
 RESET_DB=true uvicorn app.main:app --reload
 ```
 
-build docker image and run container locally
+By default, 
+- uvicorn web server listens at port 8000.
+- OAuth2 provider endpoint url set to http://127.0.0.1:8000
+
+To change port number, say, 8080:
+
+```sh
+OAUTH2_URL_BASE=http://127.0.0.1:8080 \
+RESET_DB=true \
+  uvicorn app.main:app --reload --port=8080
+```
+
+### Dockerfile 
+
+Build docker image and run container locally:
 
 ```sh
 docker build -t example-oauth2-fastapi .
-docker run --name example-oauth2-fastapi -p 8000:8000 --rm example-oauth2-fastapi
+docker run --name example-oauth2-fastapi -p 8080:8080 --rm example-oauth2-fastapi
 ```
 
-Project content structure:
+Google cloud build:
+
+```sh
+# gcloud builds --project <project-id> \
+#   submit --tag gcr.io/<project-id>/<app-name>:<ver-or-tag> .
+
+gcloud builds --project poc-data-platform-289915 \
+    submit --tag gcr.io/poc-data-platform-289915/oauth2-fastapi:v1.0 .
+
+# check existing build artifacts
+gcloud builds list
+```
+
+
+
+### Project folder structure:
 
 ```
+Dockerfile           # container image
+config.py            # application configrations
+openapi_v2.yaml      # a static openapi v2 doc that can be loaded in swagger-ui
 app                  # app root folder
 ├── __init__.py      # makes "app" a "Python package"
 ├── main.py          # "main" module of the application
-├── schemas.py  # pydantic schema models
-├── utils.py   # common utils functions
-├── db.py      # database impl
+├── models.py        # entity definitions
+├── schemas.py       # pydantic schema models
+├── security.py      # security utilites, such as encryption
+├── db.py            # database impl
+├── db_migration.py  # database migration scripts
 └── routers          # "routers" is a "Python subpackage"
 │   ├── __init__.py  # makes "routers" a "Python subpackage"
-│   ├── items.py     # "items" submodule, e.g. import app.routers.items
-│   └── users.py     # "users" submodule, e.g. import app.routers.users
-│   └── auth.py      # "auth" submodule for security and access control
+│   ├── commons.py   # web stack common utilities
+│   ├── oauth2.py    # oauth2 provider endpoints
+│   ├── oauth2_schemes.py   # oauth2 security scheme definitions
+│   ├── idp.py       # a simple local IdP that provides user login
+│   └── users.py     # "users" endpoints
 ```
 
 ## OpenApi doc v3

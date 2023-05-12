@@ -2,6 +2,7 @@ from datetime import datetime
 from .db import engine
 from .db import SessionLocal
 from .models import Base, User, OAuth2Client
+from config import Config
 
 
 def init_db():
@@ -39,7 +40,8 @@ def init_db():
             "client_name": "swagger",
             "client_uri": "http://localhost",
             "grant_types": ["authorization_code"],
-            "redirect_uris": ["http://127.0.0.1:8000/docs/oauth2-redirect"],
+            # local swagger ui redirect url
+            "redirect_uris": [f"{Config.OAUTH2_URL_BASE}/docs/oauth2-redirect"],
             "response_types": ["code"],
             "scope": "profile openid email",
             "token_endpoint_auth_method": ["client_secret_basic"],

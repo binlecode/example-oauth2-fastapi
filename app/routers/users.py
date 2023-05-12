@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from .auth import get_current_active_user
+from .oauth2 import get_current_active_user
 
 from .. import schemas
 

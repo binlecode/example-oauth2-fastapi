@@ -1,5 +1,4 @@
 from typing import Annotated
-from typing import Optional, Dict
 from datetime import timedelta
 
 from fastapi import APIRouter
@@ -11,11 +10,6 @@ from fastapi import Form
 from fastapi.responses import RedirectResponse
 from fastapi.responses import HTMLResponse
 from fastapi.responses import JSONResponse
-from fastapi.security import OAuth2
-from fastapi.security import OAuth2AuthorizationCodeBearer
-from fastapi.security import OAuth2PasswordBearer
-from fastapi.security.utils import get_authorization_scheme_param
-from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel
 
 from sqlalchemy.orm import Session
 
@@ -34,10 +28,17 @@ from ..security import decode_access_token
 from ..security import create_auth_code
 from ..security import decode_auth_code
 from ..security import create_jwk
+from config import Config
+
+from .oauth2_schemes import oauth2_password_scheme
+from .oauth2_schemes import oauth2_code_schema
+from .oauth2_schemes import oauth2_implicit_scheme
+
 
 router = APIRouter(
-    prefix="/auth",
-    tags=["auth"],
+    # prefix="/auth",
+    prefix=Config.OAUTH2_ROUTE_PREFIX,
+    tags=["oauth2"],
     dependencies=[],
 )
 
@@ -52,7 +53,8 @@ router = APIRouter(
 # In this example a 3rd party IdP is simulated by a different route in the
 # same web app, but it can be from any domain
 # this url should contain absolute path as it can be from any domain.
-IDP_LOGIN_URL = "http://127.0.0.1:8000/identity/login"
+# IDP_LOGIN_URL = "http://127.0.0.1:8000/identity/login"
+IDP_LOGIN_URL = Config.IDP_LOGIN_URL
 print(f">> Authorization server uses IdP user authentication URL: {IDP_LOGIN_URL}")
 
 
@@ -62,96 +64,32 @@ print(f">> Authorization server uses IdP user authentication URL: {IDP_LOGIN_URL
 # This url MUST contain absolute path because it is passed as a request
 # parameter to the IdP authentication server as the callback redirect url for
 # the authentication response.
-AUTHORIZATION_CALLBACK_URL = "http://127.0.0.1:8000/auth/authorization_callback"
+# AUTHORIZATION_CALLBACK_URL = "http://127.0.0.1:8000/auth/authorization_callback"
+AUTHORIZATION_CALLBACK_URL = Config.OAUTH2_AUTHORIZATION_CALLBACK_URL
 
 
 # Grant form url, this is the url for user to grant the client application
 # with the requested scopes for the access token.
 # This is a local endpoint of the authorization server.
-AUTHORIZATION_GRANT_URL = "/auth/form_grant"
-
+# AUTHORIZATION_GRANT_URL = "/auth/form_grant"
+AUTHORIZATION_GRANT_URL = Config.OAUTH2_AUTHORIZATION_GRANT_URL
 
 # access_token should always be short-lived
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = Config.OAUTH2_ACCESS_TOKEN_EXPIRE_MINUTES
 
 # in code grant flow, authorization code should be really short-lived
-AUTHORIZATION_CODE_EXPIRE_MINUTES = 5
+AUTHORIZATION_CODE_EXPIRE_MINUTES = Config.OAUTH2_AUTHORIZATION_CODE_EXPIRE_MINUTES
 
 # define OpenAPI security schemes to secure service endpoints
 #
-OAUTH2_AUTHZ_URL = "/auth/authorize"
-OAUTH2_TOKEN_URL = "/auth/token"
+OAUTH2_AUTHZ_URL = Config.OAUTH2_AUTHORIZATION_CALLBACK_URL
+OAUTH2_TOKEN_URL = Config.OAUTH2_TOKEN_URL
 # by oauth2 specs, issuer should be authorization server token endpoint url
 ISSUER = OAUTH2_TOKEN_URL
 # permission scopes that user (resource owner) can grant the client application
 # during the authorization grant stage
-CLIENT_SCOPES = {
-    "openid": "openid scope",
-    "profile": "profile scope",
-    "email": "email scope",
-}
-
-# OpenAPI OAuth2 schema for: password grant bearer token
-# Ref: https://datatracker.ietf.org/doc/html/rfc6749#section-4.3
-# this assumes the token endpoint as "context-root/<tokenUrl>"
-oauth2_password_scheme = OAuth2PasswordBearer(
-    tokenUrl=OAUTH2_TOKEN_URL, scopes=CLIENT_SCOPES
-)
-
-# OpenAPI OAuth2 schema for: authorization code grant bearer token
-# Ref: https://datatracker.ietf.org/doc/html/rfc6749#section-4.1
-oauth2_code_schema = OAuth2AuthorizationCodeBearer(
-    authorizationUrl=OAUTH2_AUTHZ_URL,
-    tokenUrl=OAUTH2_TOKEN_URL,
-    scopes=CLIENT_SCOPES,
-)
-
-
-# FastAPI has no built-in security scheme class definition for implicit grant
-# token, we define one here.
-class OAuth2ImplicitBearer(OAuth2):
-    def __init__(
-        self,
-        authorizationUrl: str,
-        scheme_name: Optional[str] = None,
-        scopes: Optional[Dict[str, str]] = None,
-        description: Optional[str] = None,
-        auto_error: bool = True,
-    ):
-        if not scopes:
-            scopes = {}
-        flows = OAuthFlowsModel(
-            implicit={
-                "authorizationUrl": authorizationUrl,
-                "scopes": scopes,
-            }
-        )
-        super().__init__(
-            flows=flows,
-            scheme_name=scheme_name,
-            description=description,
-            auto_error=auto_error,
-        )
-
-    async def __call__(self, request: Request) -> Optional[str]:
-        authorization = request.headers.get("Authorization")
-        scheme, param = get_authorization_scheme_param(authorization)
-        if not authorization or scheme.lower() != "bearer":
-            if self.auto_error:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Not authenticated",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-            else:
-                return None  # pragma: nocover
-        return param
-
-
-# OpenAPI OAuth2 scheme for: implicit grant flow
-oauth2_implicit_scheme = OAuth2ImplicitBearer(
-    authorizationUrl=OAUTH2_AUTHZ_URL, scopes=CLIENT_SCOPES
-)
+CLIENT_SCOPES = Config.OAUTH2_CLIENT_SCOPES
 
 
 @router.get("/test_implicit_grant_resource")
@@ -209,7 +147,7 @@ async def test_password_grant_resource(
 #
 
 
-@router.get("/authorize")
+@router.get(Config.OAUTH2_AUTHORIZATION_PATH)
 async def authorize(request: Request):
     params = dict(request.query_params)
     # check response_type, aka the grant type
@@ -304,7 +242,7 @@ async def authorize(request: Request):
 # - must have `access_token` key to hold token content string
 # - should have `expires_in` key with value in seconds
 #
-@router.post("/token", response_class=JSONResponse)
+@router.post(Config.OAUTH2_TOKEN_PATH, response_class=JSONResponse)
 async def token_by_grant_type(
     grant_type: str = Form(),
     # for code grant token request
@@ -468,27 +406,14 @@ async def build_token_by_code(
 
 # OAuth2 jwks endpoint
 @router.get(
-    "/jwks", operation_id="get_jwks", summary="get JWK Set", response_class=JSONResponse
+    Config.OAUTH2_JWKS_PATH,
+    operation_id="get_jwks",
+    summary="get JWK Set",
+    response_class=JSONResponse,
 )
 async def jwks():
     jwk_dict = create_jwk()
     return {"keys": [jwk_dict]}
-
-
-# By OAuth2 specs, authorization server should provide an endpoint to
-# register a client application.
-# When registering the redirect_uri for the client, its string value should be
-# validated that it must not contain uri fragment (the part with a leading
-# hash `#`, ref: https://en.wikipedia.org/wiki/URI_fragment).
-#
-# Also, the redirect_uri for a registered client should not be changed (at least
-# not often) between authorization requests.
-# If the client wants to carry request specific data, such data should be
-# encoded in the `state` parameter instead, or use the `state` parameter as
-# a session id to store the custom data on the client application datastore.
-@router.post("/register_client")
-async def register_client():
-    raise NotImplemented()
 
 
 # authentication method used by user password grant
@@ -563,7 +488,7 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
 # which is a redirect POST to this callback endpoint.
 # Authorization server will check the authentication response, then
 # redirect to grant web form for user to grant token scope.
-@router.post("/authorization_callback")
+@router.post(Config.OAUTH2_AUTHORIZATION_CALLBACK_PATH)
 async def authorization_callback(
     username: Annotated[str, Form()],
     redirect_uri: Annotated[str, Form()],
@@ -598,7 +523,7 @@ async def authorization_callback(
 
 
 # user grant approval web form for the client application
-@router.get("/form_grant", response_class=HTMLResponse)
+@router.get(Config.OAUTH2_AUTHORIZATION_GRANT_PATH, response_class=HTMLResponse)
 async def get_form_grant(req: Request):
     # convert query params to a python dict
     # this is not always a good practice when there are multiple parameters
@@ -648,7 +573,7 @@ async def get_form_grant(req: Request):
 # The authorization code can be implemented as a self-encoded JWT token.
 # The scope and state data is relayed via the grant form hidden fields.
 #
-@router.post("/form_grant")
+@router.post(Config.OAUTH2_AUTHORIZATION_GRANT_PATH)
 async def post_form_grant(
     username: Annotated[str, Form()],
     redirect_uri: Annotated[str, Form()],
@@ -749,7 +674,7 @@ async def post_form_grant(
 # - if authz server is IdP at the same time, then get user data locally
 # - if authz server has IdP integration, then ask IdP for user data
 # - if authz is alone, then extract all claims included in the Bearer token
-@router.post("/userinfo", response_class=JSONResponse)
+@router.post(Config.OAUTH2_USERINFO_PATH, response_class=JSONResponse)
 async def userinfo(token_payload: dict = Depends(get_request_token)):
     print(">> /userinfo >> token_payload:", token_payload)
 
@@ -801,3 +726,19 @@ async def userinfo(token_payload: dict = Depends(get_request_token)):
     user_info = user_data
 
     return JSONResponse(content=user_info)
+
+
+# By OAuth2 specs, authorization server should provide an endpoint to
+# register a client application.
+# When registering the redirect_uri for the client, its string value should be
+# validated that it must not contain uri fragment (the part with a leading
+# hash `#`, ref: https://en.wikipedia.org/wiki/URI_fragment).
+#
+# Also, the redirect_uri for a registered client should not be changed (at least
+# not often) between authorization requests.
+# If the client wants to carry request specific data, such data should be
+# encoded in the `state` parameter instead, or use the `state` parameter as
+# a session id to store the custom data on the client application datastore.
+@router.post("/register_client")
+async def register_client():
+    raise NotImplemented()

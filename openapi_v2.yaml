@@ -23,7 +23,7 @@ paths:
           schema:
             type: string
   # oauth2 openid connect userinfo endpoint
-  "/auth/userinfo":
+  "/oauth2/userinfo":
     post:
       # operationId is MANDATORY for gcp cloud endpoints as internal
       # identification of the operation, it must be unique within this api
@@ -56,8 +56,8 @@ securityDefinitions:
   oauth2_code:
     type: oauth2
     flow: accessCode
-    authorizationUrl: "http://localhost:8000/auth/authorize"
-    tokenUrl: "http://localhost:8000/auth/token"
+    authorizationUrl: "http://localhost:8000/oauth2/authorize"
+    tokenUrl: "http://localhost:8000/oauth2/token"
     scopes:
       openid: OpenID scope
       profile: Profile scope
@@ -65,7 +65,7 @@ securityDefinitions:
   oauth2_implicit:
     type: oauth2
     flow: implicit
-    authorizationUrl: "http://localhost:8000/auth/authorize"
+    authorizationUrl: "http://localhost:8000/oauth2/authorize"
     scopes:
       openid: OpenID scope
       profile: Profile scope
@@ -73,7 +73,7 @@ securityDefinitions:
   oauth2_password:
     type: oauth2
     flow: password
-    tokenUrl: "http://localhost:8000/auth/token"
+    tokenUrl: "http://localhost:8000/oauth2/token"
     scopes:
       openid: OpenID scope
       profile: Profile scope

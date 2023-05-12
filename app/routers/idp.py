@@ -14,9 +14,7 @@ from ..db import SessionLocal
 from ..models import User
 
 from ..security import verify_password
-
-
-IDP_LOGIN_URL = "/identity/login"
+from config import Config
 
 
 # This simulates a 3rd party Identity Provider, for user authentication
@@ -25,7 +23,7 @@ IDP_LOGIN_URL = "/identity/login"
 
 
 router = APIRouter(
-    prefix="/identity",
+    prefix=Config.IDP_ROUTE_PREFIX,
     tags=["identity"],
     dependencies=[],
 )
@@ -72,7 +70,7 @@ def authenticate_user(db: Session, username: str, password: str):
 # IdP's login web form for user (resource owner) to authenticate in order to
 # provide identity claim for the authorization server.
 #
-@router.get("/login", response_class=HTMLResponse)
+@router.get(Config.IDP_LOGIN_PATH, response_class=HTMLResponse)
 async def get_login_grant(req: Request):
     print(">> idp >> redirected to login page:", req.url)
     # convert query params to a python dict
@@ -88,7 +86,7 @@ async def get_login_grant(req: Request):
 </head>
 <body>
   <h1>IdP Delegated Login and Grant</h1>
-  <form method="post" action="{IDP_LOGIN_URL}">
+  <form method="post" action="{Config.IDP_LOGIN_URL}">
     <label for="username">Username:</label>
     <input type="text" name="username" id="username">
     <br>
@@ -129,7 +127,7 @@ async def get_login_grant(req: Request):
 # The `Location` header must have a redirect url that contains the authorization
 # code, as well as other parameters passed from the original request.
 #
-@router.post("/login")
+@router.post(Config.IDP_LOGIN_PATH)
 async def post_login_grant(
     username: Annotated[str, Form()],
     password: Annotated[str, Form()],
