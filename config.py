@@ -3,18 +3,19 @@ from dotenv import load_dotenv
 import logging
 
 
-basedir = os.path.abspath(os.path.dirname(__file__))
-load_dotenv(os.path.join(basedir, ".env.default"))
+load_dotenv()
 
 
 class Config(object):
-    # LOG_LEVEL = logging.INFO
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     logging.basicConfig(level=LOG_LEVEL)
     logger = logging.getLogger(__name__)
+    logger.info(f"Config.LOG_LEVEL: {LOG_LEVEL}")
 
     RESET_DB = os.environ.get("RESET_DB", False)
+    logger.info(f"Config.RESET_DB: {RESET_DB}")
 
+    basedir = os.path.abspath(os.path.dirname(__file__))
     # SQLALCHEMY_DATABASE_URL = "sqlite:///./sql_db.db"
     # SQLALCHEMY_DATABASE_URI = "postgresql://user:password@postgresserver/db"
     SQLALCHEMY_DATABASE_URI = os.environ.get(
@@ -22,15 +23,18 @@ class Config(object):
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = os.environ.get("SQLALCHEMY_ECHO", False)
+    logger.info(f"Config.SQLALCHEMY_ECHO: {SQLALCHEMY_ECHO}")
 
     ## web stack
 
     PAGINATION_LIMIT = 5
+    logger.info(f"Config.PAGINATION_LIMIT: {PAGINATION_LIMIT}")
 
     CORS_ALLOW_ORIGINS = [
         "*",
         # "http://127.0.0.1:8000",  # allow local (/docs) swagger-ui
     ]
+    logger.info(f"Config.CORS_ALLOW_ORIGINS: {CORS_ALLOW_ORIGINS}")
 
     ## OAuth2 configurations
 
@@ -70,7 +74,14 @@ class Config(object):
     OAUTH2_USERINFO_PATH = "/userinfo"
 
     OAUTH2_ACCESS_TOKEN_EXPIRE_MINUTES = 30
+    logger.info(
+        f"Config.OAUTH2_ACCESS_TOKEN_EXPIRE_MINUTES: {OAUTH2_ACCESS_TOKEN_EXPIRE_MINUTES}"
+    )
+
     OAUTH2_AUTHORIZATION_CODE_EXPIRE_MINUTES = 5
+    logger.info(
+        f"Config.OAUTH2_AUTHORIZATION_CODE_EXPIRE_MINUTES: {OAUTH2_AUTHORIZATION_CODE_EXPIRE_MINUTES}"
+    )
 
     # default list of supported client scopes
     OAUTH2_CLIENT_SCOPES = {
@@ -78,6 +89,7 @@ class Config(object):
         "profile": "profile scope",
         "email": "email scope",
     }
+    logger.info(f"Config.OAUTH2_CLIENT_SCOPES: {OAUTH2_CLIENT_SCOPES}")
 
     ## IdP configuration
 

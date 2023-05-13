@@ -36,9 +36,10 @@ def init_db():
         client_id_issued_at=datetime.utcnow(),
     )
     local_redirect_uris = [f"{Config.OAUTH2_URL_BASE}/docs/oauth2-redirect"]
-    if Config.OAUTH2_URL_BASE.startswith("http://"):
-        uri_base = Config.OAUTH2_URL_BASE.split("//")[1]
-        local_redirect_uris.append(f"https://{uri_base}/docs/oauth2-redirect")
+    # if url_base is http and not localhost, add https version of redirect url
+    protocol, uri = Config.OAUTH2_URL_BASE.split("://")
+    if protocol == "http" and not uri.startswith("127.0.0.1"):
+        local_redirect_uris.append(f"https://{uri}/docs/oauth2-redirect")
     oc1.set_client_metadata(
         {
             "client_name": "swagger",

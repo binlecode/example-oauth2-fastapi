@@ -29,9 +29,12 @@ spec:
             limits:
               memory: 256Mi
               cpu: "200m"
-          env:
-            - name: LOG_LEVEL
-              value: "DEBUG"
+          # env:
+          #   - name: LOG_LEVEL
+          #     value: "DEBUG"
+          envFrom:
+            - configMapRef:
+                name: oauth2-fastapi-config
           livenessProbe:
             httpGet:
               path: /health

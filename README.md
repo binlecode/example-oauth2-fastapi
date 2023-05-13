@@ -15,6 +15,7 @@ Table of content:
 - [A basic OAuth2 authorization server with FastAPI framework](#a-basic-oauth2-authorization-server-with-fastapi-framework)
   - [project setup](#project-setup)
   - [Dockerfile](#dockerfile)
+  - [GKE cluster deployment](#gke-cluster-deployment)
   - [Project folder structure:](#project-folder-structure)
   - [OpenApi doc v3](#openapi-doc-v3)
   - [OpenApi v2 doc](#openapi-v2-doc)
@@ -75,10 +76,10 @@ uvicorn app.main:app --reload
 RESET_DB=true uvicorn app.main:app --reload
 ```
 
-By default,
+By default:
 
 - uvicorn web server listens at port 8000.
-- OAuth2 provider endpoint url set to http://127.0.0.1:8000
+- OAuth2 endpoint url base is set to http://127.0.0.1:8000
 
 To change port number, say, 8080:
 
@@ -94,10 +95,18 @@ Build docker image and run container locally:
 
 ```sh
 docker build -t example-oauth2-fastapi .
-docker run --name example-oauth2-fastapi -p 8080:8080 --rm example-oauth2-fastapi
+
+# run docker container with env vars
+docker run --name example-oauth2-fastapi -p 8080:8080 \
+  -e LOG_LEVEL=DEBUG \
+  -e OAUTH2_URL_BASE=http://127.0.0.1:8080 \
+  -e RESET_DB=true \
+  --rm example-oauth2-fastapi
 ```
 
-Google cloud build:
+## GKE cluster deployment
+
+First, use Google cloud build save image to gcr repository:
 
 ```sh
 # gcloud builds --project <project-id> \
@@ -109,14 +118,20 @@ gcloud builds --project poc-data-platform-289915 \
 ... gcr.io/poc-data-platform-289915/oauth2-fastapi:v1.0.5  SUCCESS
 ```
 
-Update [gke-deployment.yaml](./gke-deployment.yaml) manifest to use the 
-latest gcr.io image tag, and deploy the workload:
+A GKE configmap needs to be created to supply application configurations.
+
+```sh
+kubectl apply -f gke-configmap.yaml
+```
+
+Update [gke-deployment.yaml](./gke-deployment.yaml) manifest to use the
+created image and configmap, and deploy the workload:
 
 ```sh
 kubectl apply -f gke-deployment.yaml
 ```
 
-To exposethe workload, there are two options:
+To expose the workload, there are two options:
 
 1. option1: expose workload with loadbalancer service
 2. option2: expose workload with NodePort service + Ingress load balancer
