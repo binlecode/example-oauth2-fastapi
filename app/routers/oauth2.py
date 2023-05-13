@@ -86,7 +86,7 @@ AUTHORIZATION_CODE_EXPIRE_MINUTES = Config.OAUTH2_AUTHORIZATION_CODE_EXPIRE_MINU
 OAUTH2_AUTHZ_URL = Config.OAUTH2_AUTHORIZATION_CALLBACK_URL
 OAUTH2_TOKEN_URL = Config.OAUTH2_TOKEN_URL
 # by oauth2 specs, issuer should be authorization server token endpoint url
-ISSUER = OAUTH2_TOKEN_URL
+ISSUER = Config.OAUTH2_ISSUER_URL
 # permission scopes that user (resource owner) can grant the client application
 # during the authorization grant stage
 CLIENT_SCOPES = Config.OAUTH2_CLIENT_SCOPES

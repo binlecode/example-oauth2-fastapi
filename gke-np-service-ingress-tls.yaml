@@ -1,0 +1,45 @@
+# NodePort Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-fastapi-service
+  labels:
+    app: oauth2-fastapi
+spec:
+  type: NodePort
+  selector:
+    app: oauth2-fastapi
+  ports:
+    - protocol: TCP
+      targetPort: 8080
+      port: 80
+---
+# Ingress with TLS termination
+# This assumes an existing ssl cert in the cluster
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: oauth2-fastapi-ingress
+  annotations:
+    # If class annotation is not specified it defaults to "gce",
+    # which deploys an external http(s) load balancer
+    # kubernetes.io/ingress.class: "gce"
+    nginx.ingress.kubernetes.io/ssl-certificate: "default/tls-cert"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # optional: use a pre-defined static external IP instead of dynamically
+    #   generating one during the deployment
+    kubernetes.io/ingress.global-static-ip-name: "oauth2-fastapi-static-ip"
+spec:
+  # this assumes an existing k8s tls secret with name 'tls-cert'
+  tls:
+  - secretName: tls-cert
+  rules:
+    - http:
+        paths:
+          - path: /*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: oauth2-fastapi-service
+                port:
+                  number: 80

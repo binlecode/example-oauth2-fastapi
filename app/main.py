@@ -1,6 +1,6 @@
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import oauth2, users, idp
+from .routers import oauth2, users, idp, oauth2_clients
 from .db_migration import init_db
 from config import Config
 
@@ -47,6 +47,7 @@ async def read_health():
 app.include_router(oauth2.router)
 app.include_router(idp.router)
 app.include_router(users.router)
+app.include_router(oauth2_clients.router)
 
 
 # initialize database if enabled

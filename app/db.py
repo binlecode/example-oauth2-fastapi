@@ -21,3 +21,9 @@ engine = create_engine(
 # define a session maker function
 # it is used to create db session (local) for each request thread
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+# prefer context-manager (with .. as ..) syntax, which auto-closes session
+def get_db():
+    with SessionLocal() as db:
+        yield db

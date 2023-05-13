@@ -35,13 +35,18 @@ def init_db():
         client_secret="secret",
         client_id_issued_at=datetime.utcnow(),
     )
+    local_redirect_uris = [f"{Config.OAUTH2_URL_BASE}/docs/oauth2-redirect"]
+    if Config.OAUTH2_URL_BASE.startswith("http://"):
+        uri_base = Config.OAUTH2_URL_BASE.split("//")[1]
+        local_redirect_uris.append(f"https://{uri_base}/docs/oauth2-redirect")
     oc1.set_client_metadata(
         {
             "client_name": "swagger",
             "client_uri": "http://localhost",
             "grant_types": ["authorization_code"],
             # local swagger ui redirect url
-            "redirect_uris": [f"{Config.OAUTH2_URL_BASE}/docs/oauth2-redirect"],
+            # "redirect_uris": [f"{Config.OAUTH2_URL_BASE}/docs/oauth2-redirect"],
+            "redirect_uris": local_redirect_uris,
             "response_types": ["code"],
             "scope": "profile openid email",
             "token_endpoint_auth_method": ["client_secret_basic"],

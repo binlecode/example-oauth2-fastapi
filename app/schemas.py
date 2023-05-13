@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, validator, root_validator
 
 #
@@ -49,5 +50,23 @@ class UserRead(User):
     id: int
 
     # set orm_mode to convert orm to dict for json
+    class Config:
+        orm_mode = True
+
+
+class OAuth2ClientCreate(BaseModel):
+    client_id: str
+    client_secret: str
+    client_metadata: dict
+
+
+class OAuth2ClientUpdate(OAuth2ClientCreate):
+    id: int
+
+
+class OAuth2ClientRead(OAuth2ClientUpdate):
+    client_id_issued_at: datetime
+    client_secret_expires_at: datetime
+
     class Config:
         orm_mode = True
