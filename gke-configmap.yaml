@@ -7,4 +7,4 @@ data:
   LOG_LEVEL: INFO
   SQLALCHEMY_ECHO: "True"
   RESET_DB: "True"
-  OAUTH2_URL_BASE: "https://34.117.165.110"
+  OAUTH2_URL_BASE: "http://34.117.165.110"

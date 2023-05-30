@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: oauth2-fastapi
-          image: gcr.io/poc-data-platform-289915/oauth2-fastapi:v1.0.5
+          image: gcr.io/poc-data-platform-289915/oauth2-fastapi:v1.0.7
           ports:
             - containerPort: 8080
               protocol: TCP

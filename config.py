@@ -41,22 +41,20 @@ class Config(object):
     OAUTH2_URL_BASE = os.environ.get("OAUTH2_URL_BASE", "http://127.0.0.1:8000")
     logger.info(f"Config.OAUTH2_URL_BASE: {OAUTH2_URL_BASE}")
 
-    OAUTH2_ROUTE_PREFIX = "/oauth2"
+    OAUTH2_PATH_PREFIX = "/oauth2"
     OAUTH2_AUTHORIZATION_PATH = "/authorize"
-    OAUTH2_AUTHORIZATION_URL = OAUTH2_ROUTE_PREFIX + OAUTH2_AUTHORIZATION_PATH
+    OAUTH2_AUTHORIZATION_URL = (
+        OAUTH2_URL_BASE + OAUTH2_PATH_PREFIX + OAUTH2_AUTHORIZATION_PATH
+    )
     logger.info(f"Config.OAUTH2_AUTHORIZATION_URL: {OAUTH2_AUTHORIZATION_URL}")
 
     OAUTH2_TOKEN_PATH = "/token"
-    OAUTH2_TOKEN_URL = OAUTH2_ROUTE_PREFIX + OAUTH2_TOKEN_PATH
+    OAUTH2_TOKEN_URL = OAUTH2_URL_BASE + OAUTH2_PATH_PREFIX + OAUTH2_TOKEN_PATH
     logger.info(f"Config.OAUTH2_TOKEN_URL: {OAUTH2_TOKEN_URL}")
-
-    # issuer identification should have absolute path
-    OAUTH2_ISSUER_URL = OAUTH2_URL_BASE + OAUTH2_TOKEN_URL
-    logger.info(f"Config.OAUTH2_ISSUER_URL: {OAUTH2_ISSUER_URL}")
 
     OAUTH2_AUTHORIZATION_GRANT_PATH = "/form_grant"
     OAUTH2_AUTHORIZATION_GRANT_URL = (
-        OAUTH2_ROUTE_PREFIX + OAUTH2_AUTHORIZATION_GRANT_PATH
+        OAUTH2_PATH_PREFIX + OAUTH2_AUTHORIZATION_GRANT_PATH
     )
     logger.info(
         f"Config.OAUTH2_AUTHORIZATION_GRANT_URL: {OAUTH2_AUTHORIZATION_GRANT_URL}"
@@ -64,14 +62,16 @@ class Config(object):
 
     OAUTH2_AUTHORIZATION_CALLBACK_PATH = "/authorization_callback"
     OAUTH2_AUTHORIZATION_CALLBACK_URL = (
-        OAUTH2_URL_BASE + OAUTH2_ROUTE_PREFIX + OAUTH2_AUTHORIZATION_CALLBACK_PATH
+        OAUTH2_URL_BASE + OAUTH2_PATH_PREFIX + OAUTH2_AUTHORIZATION_CALLBACK_PATH
     )
     logger.info(
         f"Config.OAUTH2_AUTHORIZATION_CALLBACK_URL: {OAUTH2_AUTHORIZATION_CALLBACK_URL}"
     )
 
-    OAUTH2_JWKS_PATH = "/jwks"
+    OAUTH2_JWT_ALGORITHM = "RS256"
+    OAUTH2_JWK_DEFAULT_KID = "default-jwk-kid"
     OAUTH2_USERINFO_PATH = "/userinfo"
+    OAUTH2_USERINFO_URL = OAUTH2_URL_BASE + OAUTH2_PATH_PREFIX + OAUTH2_USERINFO_PATH
 
     OAUTH2_ACCESS_TOKEN_EXPIRE_MINUTES = 30
     logger.info(
@@ -91,11 +91,27 @@ class Config(object):
     }
     logger.info(f"Config.OAUTH2_CLIENT_SCOPES: {OAUTH2_CLIENT_SCOPES}")
 
+    OIDC_WELL_KNOWN_PATH_PREFIX = "/.well-known"
+    OIDC_JWKS_PATH = "/jwks.json"
+    OIDC_JWKS_URL = OAUTH2_URL_BASE + OIDC_WELL_KNOWN_PATH_PREFIX + OIDC_JWKS_PATH
+
+    # "iss" issuer claim is part of id token, and should always be included
+    # in a jwt bearer token
+    # OIDC issuer identification should be the oidc provider, which is the
+    # authorization server itself
+    OIDC_ISSUER_URL = OAUTH2_URL_BASE
+    logger.info(f"Config.OIDC_ISSUER_URL: {OIDC_ISSUER_URL}")
+
+    OIDC_OPENID_CONFIGURATION_PATH = "/openid-configuration"
+    logger.info(
+        f"Config.OIDC_OPENID_CONFIGURATION_PATH: {OIDC_OPENID_CONFIGURATION_PATH}"
+    )
+
     ## IdP configuration
 
-    IDP_ROUTE_PREFIX = "/identity"
+    IDP_PATH_PREFIX = "/identity"
     IDP_LOGIN_PATH = "/login"
     # override this with env var for an external 3rd party idp
     # for a local IdP, the url is a relative path: "/identity/login"
-    IDP_LOGIN_URL = os.environ.get("IDP_LOGIN_URL", IDP_ROUTE_PREFIX + IDP_LOGIN_PATH)
+    IDP_LOGIN_URL = os.environ.get("IDP_LOGIN_URL", IDP_PATH_PREFIX + IDP_LOGIN_PATH)
     logger.info(f"Config.IDP_LOGIN_URL: {IDP_LOGIN_URL}")

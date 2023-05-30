@@ -1,6 +1,6 @@
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import oauth2, users, idp, oauth2_clients
+from .routers import oauth2, users, idp, oauth2_clients, well_known
 from .db_migration import init_db
 from config import Config
 
@@ -48,6 +48,7 @@ app.include_router(oauth2.router)
 app.include_router(idp.router)
 app.include_router(users.router)
 app.include_router(oauth2_clients.router)
+app.include_router(well_known.router)
 
 
 # initialize database if enabled

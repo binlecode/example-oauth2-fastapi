@@ -23,7 +23,7 @@ from config import Config
 
 
 router = APIRouter(
-    prefix=Config.IDP_ROUTE_PREFIX,
+    prefix=Config.IDP_PATH_PREFIX,
     tags=["identity"],
     dependencies=[],
 )

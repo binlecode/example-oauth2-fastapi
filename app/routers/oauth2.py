@@ -27,7 +27,6 @@ from ..security import create_access_token
 from ..security import decode_access_token
 from ..security import create_auth_code
 from ..security import decode_auth_code
-from ..security import create_jwk
 from config import Config
 
 from .oauth2_schemes import oauth2_password_scheme
@@ -37,7 +36,7 @@ from .oauth2_schemes import oauth2_implicit_scheme
 
 router = APIRouter(
     # prefix="/auth",
-    prefix=Config.OAUTH2_ROUTE_PREFIX,
+    prefix=Config.OAUTH2_PATH_PREFIX,
     tags=["oauth2"],
     dependencies=[],
 )
@@ -86,7 +85,7 @@ AUTHORIZATION_CODE_EXPIRE_MINUTES = Config.OAUTH2_AUTHORIZATION_CODE_EXPIRE_MINU
 OAUTH2_AUTHZ_URL = Config.OAUTH2_AUTHORIZATION_CALLBACK_URL
 OAUTH2_TOKEN_URL = Config.OAUTH2_TOKEN_URL
 # by oauth2 specs, issuer should be authorization server token endpoint url
-ISSUER = Config.OAUTH2_ISSUER_URL
+ISSUER_CLAIM = Config.OIDC_ISSUER_URL
 # permission scopes that user (resource owner) can grant the client application
 # during the authorization grant stage
 CLIENT_SCOPES = Config.OAUTH2_CLIENT_SCOPES
@@ -310,11 +309,13 @@ async def build_token_by_password(
     # db = SessionLocal()
     # client = db.query(OAuth2Client).filter(OAuth2Client.client_id == client_id).first()
 
-    token_data = {"iss": ISSUER, "sub": user.username}
+    token_data = {"iss": ISSUER_CLAIM, "sub": user.username}
     if scope:
         token_data["scope"] = scope
 
-    access_token_expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires_delta = timedelta(
+        minutes=Config.OAUTH2_ACCESS_TOKEN_EXPIRE_MINUTES
+    )
     access_token = create_access_token(
         data=token_data,
         expires_delta=access_token_expires_delta,
@@ -378,7 +379,7 @@ async def build_token_by_code(
     # By JWT, "aud" identifies the receiver of the JWT,
     # in OAuth2 specs, audience claim must match the client_id
     # of the registered application
-    token_data = {"iss": ISSUER, "aud": client_id}
+    token_data = {"iss": ISSUER_CLAIM, "aud": client_id}
 
     # todo: get subject (aka resource owner) user id
     #   this is usually by looking up auth code and client_id
@@ -392,7 +393,9 @@ async def build_token_by_code(
 
     # todo: add additional custom claim k-vs if any
 
-    access_token_expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires_delta = timedelta(
+        minutes=Config.OAUTH2_ACCESS_TOKEN_EXPIRE_MINUTES
+    )
     access_token = create_access_token(
         data=token_data, expires_delta=access_token_expires_delta
     )
@@ -402,18 +405,6 @@ async def build_token_by_code(
         "token_type": "Bearer",
         "expires_in": access_token_expires_delta.seconds,
     }
-
-
-# OAuth2 jwks endpoint
-@router.get(
-    Config.OAUTH2_JWKS_PATH,
-    operation_id="get_jwks",
-    summary="get JWK Set",
-    response_class=JSONResponse,
-)
-async def jwks():
-    jwk_dict = create_jwk()
-    return {"keys": [jwk_dict]}
 
 
 # authentication method used by user password grant
@@ -439,7 +430,7 @@ async def get_request_token(
     try:
         # get token from any of the supported grant schemes
         token = token_by_password or token_by_code or token_by_implicit
-        token_payload = decode_access_token(token)
+        token_payload = decode_access_token(token, options={"verify_aud": False})
         return token_payload
     except JWTError as e:
         err_desc = str(e)
@@ -611,9 +602,11 @@ async def post_form_grant(
 
     # if implicit grant, return access token in redirect response
     if response_type == "token":
-        access_token_expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token_expires_delta = timedelta(
+            minutes=Config.OAUTH2_ACCESS_TOKEN_EXPIRE_MINUTES
+        )
         access_token = create_access_token(
-            data={"iss": ISSUER, "sub": username, "scope": scope},
+            data={"iss": ISSUER_CLAIM, "sub": username, "scope": scope},
             expires_delta=access_token_expires_delta,
         )
         # by OAuth 2 specs, for implicit grant, access token must be put into

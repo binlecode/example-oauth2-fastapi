@@ -1,14 +1,14 @@
 # A basic OAuth2 authorization server with FastAPI framework
 
-This is a conceptual and simplified implementation of OAuth2 authorization
-server with plain python, only for learning purpose.
+This is a PoC implementation of an OAuth2 authorization
+server with plain python. FastAPI is used as the stack framework.
+
+FastAPI is ASGI framework, it supports sync and async request handling seamlessly.
+Think of FastAPI as the glue that brings together Starlette, Pydantic, OpenAPI,
+and JSON Schema.
 
 A mature OAuth2 python library to use in implementing a production OAuth2
-provider service is [authlib](https://github.com/lepture/authlib). It is
-mainly sponsored by Auth0 and actively maintained.
-
-A good java implementation tutorial is helpful to learn basic
-OAuth2 concept is: https://www.baeldung.com/java-ee-oauth2-implementation.
+provider service is [authlib](https://github.com/lepture/authlib).
 
 Table of content:
 
@@ -16,11 +16,12 @@ Table of content:
   - [project setup](#project-setup)
   - [Dockerfile](#dockerfile)
   - [GKE cluster deployment](#gke-cluster-deployment)
-  - [Project folder structure:](#project-folder-structure)
-  - [OpenApi doc v3](#openapi-doc-v3)
-  - [OpenApi v2 doc](#openapi-v2-doc)
+    - [build image and deploy workload](#build-image-and-deploy-workload)
+    - [expose workload with ingress, static IP and TLS](#expose-workload-with-ingress-static-ip-and-tls)
+  - [OpenApi doc endpoint](#openapi-doc-endpoint)
   - [Pre-register client applications in database](#pre-register-client-applications-in-database)
   - [OAuth2 framework implementation](#oauth2-framework-implementation)
+    - [core entities](#core-entities)
     - [federated IdP user authentication](#federated-idp-user-authentication)
     - [code grant](#code-grant)
       - [authorization code](#authorization-code)
@@ -33,17 +34,12 @@ Table of content:
     - [self-encoded token encoding](#self-encoded-token-encoding)
     - [client application registration](#client-application-registration)
     - [client application redirect\_uri validation](#client-application-redirect_uri-validation)
-    - [access token JWT signing and JWKS endpoint](#access-token-jwt-signing-and-jwks-endpoint)
+  - [access token JWT signing and JWKS endpoint](#access-token-jwt-signing-and-jwks-endpoint)
+    - [openssl key generation](#openssl-key-generation)
+    - [python cryptography key generation](#python-cryptography-key-generation)
   - [OAuth2 and OpenID connect](#oauth2-and-openid-connect)
-    - [OAuth2 framework](#oauth2-framework)
-  - [scratch pad](#scratch-pad)
-  - [References](#references)
 
 ## project setup
-
-FastAPI is ASGI framework, it supports sync ans async request handling seamlessly.
-Think of FastAPI as the glue that brings together Starlette, Pydantic, OpenAPI,
-and JSON Schema.
 
 Use pyenv to select python version 3.10+
 
@@ -76,10 +72,8 @@ uvicorn app.main:app --reload
 RESET_DB=true uvicorn app.main:app --reload
 ```
 
-By default:
-
-- uvicorn web server listens at port 8000.
-- OAuth2 endpoint url base is set to http://127.0.0.1:8000
+By default, uvicorn web server listens at port 8000.
+Therefore, default OAuth2 endpoint url base is set to http://127.0.0.1:8000.
 
 To change port number, say, 8080:
 
@@ -106,43 +100,61 @@ docker run --name example-oauth2-fastapi -p 8080:8080 \
 
 ## GKE cluster deployment
 
-First, use Google cloud build save image to gcr repository:
+### build image and deploy workload
+
+Use Google cloud builds service to build and upload image to
+gcr repository:
 
 ```sh
+export VER=1.0.7
 # gcloud builds --project <project-id> \
 #   submit --tag gcr.io/<project-id>/<app-name>:<ver-or-tag> .
-
 gcloud builds --project poc-data-platform-289915 \
-    submit --tag gcr.io/poc-data-platform-289915/oauth2-fastapi:v1.0.5 .
-->
-... gcr.io/poc-data-platform-289915/oauth2-fastapi:v1.0.5  SUCCESS
+    submit --tag gcr.io/poc-data-platform-289915/oauth2-fastapi:v$VER .
 ```
 
-A GKE configmap needs to be created to supply application configurations.
+Before deployment, create or update the GKE configmap to support
+application configuration.
 
 ```sh
 kubectl apply -f gke-configmap.yaml
 ```
 
-Update [gke-deployment.yaml](./gke-deployment.yaml) manifest to use the
-created image and configmap, and deploy the workload:
+Use `sed` to update [gke-deployment.yaml](./gke-deployment.yaml) manifest to
+for the desired image version and configmap, then deploy the workload:
 
 ```sh
+export VER=1.0.7
+# linux
+# sed -i "/oauth2-fastapi:/s/v.*/v$ver/" gke-deployment.yaml
+# macos
+sed -i '' -e "/oauth2-fastapi:/s/v.*/v$VER/" gke-deployment.yaml
 kubectl apply -f gke-deployment.yaml
 ```
 
+If there's no change in application, but only configuration update, then
+workload deployment is not needed. Instead, we can use kubectl scale to
+refresh workload.
+
+```sh
+kubectl describe deployment oauth2-fastapi
+kubectl scale deployment oauth2-fastapi --replicas=0
+kubectl scale deployment oauth2-fastapi --replicas=1
+```
+
+### expose workload with ingress, static IP and TLS
+
 To expose the workload, there are two options:
 
-1. option1: expose workload with loadbalancer service
-2. option2: expose workload with NodePort service + Ingress load balancer
+- option1: expose workload with LoadBalancer service
+- option2: expose workload with NodePort service + Ingress load balancer
 
 Both options create an external load balancer with an external IP.
-This external IP, by default, is dynamically generated by GCP, and is temporary.
+This external IP, by default, is dynamically generated by GCP, and is recycled
+when the service is deleted.
 
 For a more realistic deployment for an OAuth2 provider, a static external IP
-is preferred.
-
-To create a static IP:
+is preferred. To create a static IP:
 
 ```sh
 gcloud compute addresses create oauth2-fastapi-static-ip --global
@@ -157,7 +169,7 @@ With static ip enabled in ingress manifest, apply it:
 
 ```sh
 kubectl apply -f gke-np-service-ingress-tls.yaml
-
+# check
 kubectl get service | grep oauth2-fastapi
 kubectl get ingress | grep oauth2-fastapi
 ->
@@ -175,39 +187,13 @@ root@tmp-shell:/# curl http://oauth2-fastapi-service.default.svc.cluster.local:8
 {"status":"up"}
 ```
 
-Now, update application oauth2 endpoint url root with this created static
-IP address. In [Dockerfile](./Dockerfile):
+To use the created static IP, update `OAUTH2_URL_BASE` in
+[configmap](./gke-configmap.yaml) manifest and apply change.
 
-```Dockerfile
-ENV OAUTH2_URL_BASE "http://34.117.165.110"
-```
+The workload needs to be refreshed to take the updated config, by using
+`kubectl scale` command described above.
 
-Rebuild image and redeploy the workload.
-
-## Project folder structure:
-
-```
-Dockerfile           # container image
-config.py            # application configrations
-openapi_v2.yaml      # a static openapi v2 doc that can be loaded in swagger-ui
-app                  # app root folder
-├── __init__.py      # makes "app" a "Python package"
-├── main.py          # "main" module of the application
-├── models.py        # entity definitions
-├── schemas.py       # pydantic schema models
-├── security.py      # security utilites, such as encryption
-├── db.py            # database impl
-├── db_migration.py  # database migration scripts
-└── routers          # "routers" is a "Python subpackage"
-│   ├── __init__.py  # makes "routers" a "Python subpackage"
-│   ├── commons.py   # web stack common utilities
-│   ├── oauth2.py    # oauth2 provider endpoints
-│   ├── oauth2_schemes.py   # oauth2 security scheme definitions
-│   ├── idp.py       # a simple local IdP that provides user login
-│   └── users.py     # "users" endpoints
-```
-
-## OpenApi doc v3
+## OpenApi doc endpoint
 
 Openapi doc v3 is auto-generated by fastapi framework, and served at url:
 http://127.0.0.1:8000/docs
@@ -215,26 +201,24 @@ http://127.0.0.1:8000/docs
 With openapi doc loaded in swagger editor interface, it is recommended to use
 it for interactive requests during development.
 
-## OpenApi v2 doc
-
-Also, an openapi v2 doc yaml file is available [openapi_v2.yaml](openapi_v2.yaml).
+An openapi v2 doc yaml file is available [openapi_v2.yaml](openapi_v2.yaml).
 This yaml can be loaded to an online swagger-UI editor for testing.
 
 An OAuth 2 client is pre-registered for the official swagger-ui (https://editor.swagger.io/).
 
 ## Pre-register client applications in database
 
-For demo/testing, the database initial migration script includes the following
-clients for token flows:
+For demo/testing, the embedded sqlite database has an initial migration script
+that loads three pre-defined oauth2 clients:
 
 - local swagger UI client, via built-in openapi v3 '/docs' endpoint
 - postman client
 - online swagger editor client (https://editor.swagger.io/)
 
-See [db_migration.py](app/db_migration.py) for detailed client registration
-properties such as client credentials, redirect_uri, grant_types, token scopes,
-etc. They will be used in swagger UI or postman authorization forms to invoke
-authorization flows.
+See: [db_migration.py](app/db_migration.py).
+
+Properties, such as client credentials, redirect_uri, grant_types, token scopes,
+can be used in swagger UI or postman authorization flows.
 
 For example, for online-swagger client, paste the content of
 [openapi_v2.yaml](openapi_v2.yaml) to https://editor.swagger.io.
@@ -244,7 +228,7 @@ specified in the database migration script and set:
 - client_id=online-swagger
 - client_secret=secret
 
-And choose one of the two preloaded users, johndoe and alice, with his/her
+And choose one of the two preloaded users, `johndoe` and `alice`, with his/her
 respective password for authentication and token scope grant.
 
 ## OAuth2 framework implementation
@@ -283,6 +267,11 @@ exactly why OAuth 2 is created to prevent in the first place.
 Therefore, password grant should be discouraged or avoided.
 
 In fact the password grant is being removed in OAuth 2.1 update.
+
+### core entities
+
+A good java implementation tutorial is helpful to learn basic
+OAuth2 concept is: https://www.baeldung.com/java-ee-oauth2-implementation.
 
 ### federated IdP user authentication
 
@@ -507,11 +496,11 @@ There are three cases where redirect_uri should be validated:
 - in the authorization request (both authorization code and implicit grant types)
 - when the application exchanges an authorization code for an access token
 
-### access token JWT signing and JWKS endpoint
+## access token JWT signing and JWKS endpoint
 
 By OAuth2 specs, authorization server should provide JSON Web Key (JWK)
 Set (JWKS) endpoint for token-receiving parties to verify the issued JWT
-token, specifically with RSA signing algorithm.
+token signature, specifically with RSA signing algorithm.
 Two signing algorithms are commonly used in signing a JWT:
 
 - RS256: stands for RS256+SHA256, RS256 is for signing, SHA256 is for hashing
@@ -523,6 +512,8 @@ Two signing algorithms are commonly used in signing a JWT:
   HS256 encrypts with symmetric key, which means the JWT is signed and
   validated by the same key
 
+### openssl key generation
+
 For HS256 symmetric key signing, a simple random key can be generated with
 openssl:
 
@@ -531,31 +522,61 @@ openssl rand -hex 32
 09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
 ```
 
-RS256 should be used in production system for OAuth 2 JWT signing, with its
-public key being distributed via the JWKS endpoint, which is usually
+RSA asymmetric algorithm should be used for OAuth 2 JWT signing, with its
+public key being distributed via the JWKS endpoint, which is usually at
+"<auth-server-url-root>/oauth2/jwks" (legacy path) or under well-known URI
+(IETF 8615 https://datatracker.ietf.org/doc/html/rfc8615):
 "<auth-server-url-root>/.well-known/jwks.json".
 
-To generate the key pair for JWT RS256 signing algorithm,
-use `openssl` to generate RSA private key pem file:
+Use `openssl` to generate RSA private key pem file:
 
 ```sh
-openssl genpkey -algorithm RSA -out jwt-private-key.pem -pkeyopt rsa_keygen_bits:2048
+# genrsa command generates rsa key pair, and saves to a pem file
+# the pem file has header:
+# `-----BEGIN RSA PRIVATE KEY-----`
+openssl genrsa -out rsa-private-key.pem 2048
+
+# genpkey command is newer and more general, and is preferred over genrsa
+# the pem file has header:
+# `-----BEGIN PRIVATE KEY-----`
+openssl genpkey -algorithm RSA -out rsa-private-key.pem -pkeyopt rsa_keygen_bits:2048
 ```
+
+Generate the public key from the private key:
 
 ```sh
-openssl rsa -in jwt-private-key.pem -pubout -outform PEM -out jwt-public-key.pem
+openssl rsa -in rsa-private-key.pem -pubout -outform PEM -out rsa-public-key.pem
 ```
 
-These two key files can be loaded in authorization server and used in
-signing jwt tokens. However, this may not be sufficient when the key
-pair is additionally required to be:
+The key pair files can be loaded in authorization server and used in
+signing jwt tokens.
+
+However, this may not be sufficient when the key
+pair is required to be:
 
 - rotated for certain period of time for enhanced security
 - client specific for enhanced tenancy isolation
 
 In such case, the key pair should be generated programmatically.
+
+### python cryptography key generation
+
 In Python, the [cryptography lib](https://cryptography.io/en/latest/) is
-mostly used for RS256 key implementation.
+widely used for cryptography implementations, including RS256.
+
+> Notes on RSA private key PEM formats:
+> RSA private key files stored in PEM format typically have PKCS#1 or PKCS#8
+> encoding. PKCS#8 is a more recent standard that defines a syntax for encoding
+> private keys. It supports RSA as well as other key types. That's why
+> its pem header is `BEGIN PRIVATE KEY` rather than `BEGIN RSA PRIVATE KEY` as
+> in PKCS#1 format.
+
+> Notes on RSA public key pem formats:
+> RSA public keys stored in PEM format can be in either X.509 or PKCS#1 format.
+> X.509 is a widely-used for SSL/TLS certificates and code signing.
+> PKCS#1 defines the syntax for RSA encryption and decryption operations.
+> A PKCS#1 PEM format contains the key's modulus and exponent, and is used
+> primarily for secure session key exchange and digital signatures.
 
 ```python
 import json
@@ -563,7 +584,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
 
-# Generate RSA key pair
+# Generate RSA key pair programmatically.
 # `public_exponent` is a prime integer, which should be sufficiently large
 # to make generated keys secure
 # 65537 is what industry commonly uses to generate secure rs256 private keys
@@ -573,98 +594,112 @@ private_key = rsa.generate_private_key(
     backend=default_backend()
 )
 
-# a private key can also be loaded from a pem file like the
-# one generated above
-src_private_key_pem = open("jwt-key").read()
+# Alternatively, load an existing private key from a pem file like the
+# one generated by openssl utility above.
+# pem file has to be read in binary mode ("rb")
+src_private_key_pem = open("rsa-private-key.pem", "rb").read()
 private_key = serialization.load_pem_private_key(
-    # serialization needs pem content to be in utf-8 format
-    src_private_key_pem.encode("utf-8"),
+    src_private_key_pem,
     password=None,
     backend=default_backend()
 )
+
+# extract public key from private key
 public_key = private_key.public_key()
 
+# we can also export pem binary from the key object
+# format: TraditionalOpenSSL => header `BEGIN RSA PRIVATE KEY`
+# format: PKCS#8 => header `BEGIN PRIVATE KEY`
 private_key_pem = private_key.private_bytes(
     encoding=serialization.Encoding.PEM,
-    format=serialization.PrivateFormat.TraditionalOpenSSL,
+    # format=serialization.PrivateFormat.TraditionalOpenSSL,
+    format=serialization.PrivateFormat.PKCS8,
     encryption_algorithm=serialization.NoEncryption()
 )
 
-assert private_key_pem == src_private_key_pem.encode("utf-8")
+# The exported byte array should match the source version
+# if not match, usually the difference is in pem format header
+assert private_key_pem == src_private_key_pem
 
+# similarly, we can export pem binary from public key object
+# format: X.509 SubjectPublicKeyInfo => PEM header: BEGIN PUBLIC KEY
+# format: PKCS#1 Raw PKCS#1 => PEM header: BEGIN RSA PUBLIC KEY
 public_key_pem = public_key.public_bytes(
     encoding=serialization.Encoding.PEM,
     format=serialization.PublicFormat.SubjectPublicKeyInfo
+    # format=serialization.PublicFormat.PKCS1
 )
 
-# key-id key for jwk
-kid = "mykey"
-# usage key for jwk, "sig" means for signing/signature
-use = "sig"
-n = public_key.public_numbers().n
+# The public key needs to be converted to string format for JSON web key (jwk)
+# creation.
+# Inside the jose.jwk.construct util, the low-level processing is basically
+# extracting public key's public number modulus (n) and exponent (e), and
+# convert them to url-safe base64 encoded string values for jwks JSON
+# serialization.
 
-# in the jwk above, the n (integer) is too long to be included in json
-# so it is typically encoded to a url-safe base64 string
-import base64
+public_key_str = public_key_pem.decode("utf-8")
 
-n_bytes = n.to_bytes((n.bit_length() + 7) // 8, byteorder='big')
-n_b64 = base64.urlsafe_b64encode(n_bytes)
+from jose import jwk
 
-# to serialize it to json string, it needs to be converted to utf-8 string
-n_b64_str = n_b64.decode("utf-8")
+jwk_obj = jwk.construct(public_key_str, algorithm="RS256")
 
-jwk = {
-    "kty": "RSA",
-    "kid": kid,
-    "use": use,
-    "alg": "RS256",
-    "n": n_b64_str,
-    "e": public_key.public_numbers().e,
-}
+jwk_dict = jwk_obj.to_dict()
+
+# attach key id and usage keys
+jwk_dict.update({
+    # key id
+    "kid": "my-kid",
+    # usage key for jwk, "sig" means for signing/signature
+    "use": "sig",
+})
 
 jwks = {
-    "keys": [jwk]
+    "keys": [jwk_dict]
 }
-
 jwks_json = json.dumps(jwks)
 
 # To use jwks json for jwt validation:
-# first, extract public key from jwk
-import base64
+# first, construct jwk object from jwk dict
+# then, extract public_key from jwk
+jwk_obj = jwk.construct(jwk_dict, algorithm="RS256")
+pub_key = jwk_obj.public_key()
 
-pub_key = None
-for jwk in jwks["keys"]:
-    if jwk["kid"] == kid:
-        jwk_n = jwk["n"]
-        n = None
-        e = None
-        if isinstance(jwk_n, str):
-            n = int.from_bytes(base64.urlsafe_b64decode(jwk['n'] + "=="), byteorder='big')
-        e = jwk["e"]
-        if n and e:
-            #
-            pub_key = rsa.RSAPublicNumbers(e=e, n=n).public_key()
-            break
+# it turns out that the jwk_obj is pub_key itself, just different representation
+import jose
 
-if pub_key is None:
-    raise Exception("Public key for kid not found")
+assert type(jwk_obj) == type(pub_key) == jose.backends.cryptography_backend.CryptographyRSAKey
 
-pub_key_pem = pub_key.public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo
+# to_pem() takes two format options:
+# PKCS1 => header `BEGIN RSA PUBLIC KEY`
+# PKCS8 (default) => header `BEGIN PUBLIC KEY`
+pub_key_pem = pub_key.to_pem(
+    pem_format="PKCS8"
 )
+pub_key_str = pub_key_pem.decode("utf-8")
 
 # the jwk extracted pub_key pem byte array should match its source byte array
 assert public_key_pem == pub_key_pem
+assert public_key_str == pub_key_str
 
-# then: Verify JWT signature using public key
+# now: Verify JWT signature using public key
 from jose import jwt, JWTError
 
 jwt_str = "<JWT string to validate>"
+
+# jwt.decode can take different format of public key content for validation
 try:
+    decoded = jwt.decode(jwt_str, key=jwk_dict, algorithms=["RS256"])
+    decoded = jwt.decode(jwt_str, key=pub_key, algorithms=["RS256"])
     decoded = jwt.decode(jwt_str, key=pub_key_pem, algorithms=["RS256"])
+    decoded = jwt.decode(jwt_str, key=pub_key_str, algorithms=["RS256"])
 except JWTError as e:
     print(e)
+
+# under the hood, jwt.decode is a wrapper of jws.verify() util
+# jws.verify() splits the token into header, payload and signature segments, and validate each of them with provided key
+from jose import jws
+
+jwt_payload = jws.verify(jwt_str, jwk_dict, ["RS256"])
 ```
 
 ## OAuth2 and OpenID connect
@@ -673,37 +708,15 @@ OAuth 2 only defines authorization specs, leaves authentication up to the
 identity provider (IdP). This potential gap of authentication **protocol**
 standardization is filled by OpenID Connect.
 
-Besides authorization, OAuth 2 framework can also be used to build authentication
-and identity protocol:
+Besides authorization, OAuth 2 framework can also be used to implement
+authentication and identity protocol:
 
-- authorization server can provide an endpoint for user information, which
-  usually takes the `/userinfo` uri.
-- define scopes dedicated for user identify and information, `openid`, `profile`, etc
+- provide an endpoint for user information, which usually exposes the
+  `/userinfo` endpoint
+- define authorization scopes dedicated for user identify and information,
+  such as `openid`, `profile`, etc
 
-OpenID Connect protocol can be used to carry user id and other information
-between enterprise entities. The core of OpenID Connect is a user **ID token**.
-
-In contrast to access tokens, which are only intended to be understood by the
-resource server, ID tokens are intended to be understood by the OAuth client.
-When the client makes an OpenID Connect request, it can request an ID token
-along with an access token.
-
-OpenID Connect’s ID Tokens take the form of a JWT (JSON Web Token).
-Inside the JWT are a handful of defined property names that provide information
-to the application:
-
-- sub: subject, identity of the resource owner
-- iss: issuer, the server that issues the id token
-- aud: audience, identity of the client that requests the id token
-- exp: expiration time of the id token
-- iat: issued at, the time the token is issued
-
-When OAuth request contains `openid` scope, the above properties should
-be present in returned access token.
-
-### OAuth2 framework
-
-## scratch pad
+To call `useinfo` endpoint, the request must be POST.
 
 ```sh
 curl -X 'POST' \
@@ -714,4 +727,31 @@ curl -X 'POST' \
   -d {}
 ```
 
-## References
+OpenID Connect protocol can be used to carry user id and other information
+between enterprise entities. The core of OpenID Connect is user **ID token**.
+
+In contrast to access tokens, which are only intended to be understood by the
+resource server, ID tokens are intended to be understood by the OAuth client.
+When the client makes an OpenID Connect request, it can request an ID token
+along with an access token.
+
+OpenID Connect’s ID Tokens take the form of a JWT (JSON Web Token).
+Inside the JWT are a handful of defined properties that provide information
+to the client application:
+
+- sub: subject, identity of the resource owner
+- iss: issuer, the server that issues the id token
+- aud: audience, identity of the client that requests the id token
+- exp: expiration time of the id token
+- iat: issued at, the time the token is issued
+
+When OAuth request contains `openid` scope, the above properties should
+be present in returned access token.
+
+In addition, OpenID Connect provides a set of standard claims that can be
+included in the ID token, such as the user's name, email address, and preferred
+language. Additional custom claims can be added too.
+
+Besides ID token, OpenID Connect protocol also defines a well-known discovery
+endpoint, `<domain>/.well-known/openid-configuration`.
+See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
