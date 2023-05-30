@@ -7,6 +7,8 @@
 jwt-key
 jwt-key.pub
 **/*.pem
+*.crt
+*.key
 
 # sqlite db file
 *.db

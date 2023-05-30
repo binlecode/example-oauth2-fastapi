@@ -165,7 +165,7 @@ gcloud compute addresses list | grep oauth2-fastapi
 oauth2-fastapi-static-ip   34.117.165.110  EXTERNAL RESERVED
 ```
 
-With static ip enabled in ingress manifest, apply it:
+Use created static ip in ingress manifest, then apply it:
 
 ```sh
 kubectl apply -f gke-np-service-ingress-tls.yaml
@@ -175,6 +175,9 @@ kubectl get ingress | grep oauth2-fastapi
 ->
 oauth2-fastapi-ingress   <none>   *       34.117.165.110   80, 443   12m
 ```
+
+The ingress has optiona TLS termination, with certs configured as GKE
+secret. See [gke-tls-secret.md](./gke-tls-secret.md) for details.
 
 To check in-cluster service access,
 create a temp standalone pod, and test calling service via cluster DNS name.
