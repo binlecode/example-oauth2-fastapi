@@ -273,6 +273,51 @@ In fact the password grant is being removed in OAuth 2.1 update.
 
 ### core entities
 
+Simplified ERD of application entities:
+
+```mermaid
+---
+title: OAuth2 core entities
+---
+erDiagram
+  OAUTH2_AUTHORIZATION_CODE {
+    string client_id
+    string redirect_uri
+    string response_type
+    string scope
+    string code
+  }
+
+  OAUTH2_TOKEN {
+    string id
+    string user_id
+    string client_id
+    string token_type
+    string access_token
+    string refresh_token    
+  }
+
+  OAUTH2_CLIENT {
+    string id
+    string client_id
+    string client_secret
+    dict metadata
+  }
+  OAUTH2_CLIENT ||--o{ OAUTH2_TOKEN : holds
+  OAUTH2_CLIENT ||--o{ OAUTH2_AUTHORIZATION_CODE : requests
+  OAUTH2_CLIENT ||--|{ USER : represents
+
+  USER {
+    string id
+    string username
+    string password_hashed
+    dict metadata
+  }
+```
+
+> Todo: in the erd above, scope properties should be externalized as an entity
+
+
 A good java implementation tutorial is helpful to learn basic
 OAuth2 concept is: https://www.baeldung.com/java-ee-oauth2-implementation.
 
@@ -719,7 +764,7 @@ authentication and identity protocol:
 - define authorization scopes dedicated for user identify and information,
   such as `openid`, `profile`, etc
 
-To call `useinfo` endpoint, the request must be POST.
+To call `userinfo` endpoint, the request must be POST.
 
 ```sh
 curl -X 'POST' \
@@ -749,11 +794,15 @@ to the client application:
 - iat: issued at, the time the token is issued
 
 When OAuth request contains `openid` scope, the above properties should
-be present in returned access token.
+be present in returned access token. For additional user information,
+there are two common implementation options:
 
-In addition, OpenID Connect provides a set of standard claims that can be
-included in the ID token, such as the user's name, email address, and preferred
-language. Additional custom claims can be added too.
+- include an `idToken` in the access token payload
+- use this access token to access `userinfo` endpoint to retrieve user info
+
+OpenID Connect provides a set of standard claims that can be included in the
+ID token, such as the user's name, email address, and preferred language.
+Additional custom claims can be added too.
 
 Besides ID token, OpenID Connect protocol also defines a well-known discovery
 endpoint, `<domain>/.well-known/openid-configuration`.
